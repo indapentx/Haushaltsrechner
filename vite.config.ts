@@ -11,9 +11,10 @@ import { VitePWA } from 'vite-plugin-pwa';
  */
 const base = process.env.BASE_PATH ?? '/Haushaltsrechner/';
 
-export default defineConfig(({ command }) => ({
-  // The dev server always serves from the root.
-  base: command === 'build' ? base : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  // `vite preview` must mirror production, or a subpath bug hides until
+  // it is live. Only the dev server serves from the root.
+  base: command === 'build' || isPreview ? base : '/',
   plugins: [
     react(),
     tailwindcss(),
