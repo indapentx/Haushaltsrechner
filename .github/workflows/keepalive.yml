@@ -1,0 +1,32 @@
+# Supabase pauses a free project after about a week with no activity, which
+# for an app opened once or twice a month means arriving to a sleeping
+# database every time. This pings it twice a week to keep it awake.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL       your project URL
+#   SUPABASE_ANON_KEY  the anon / publishable key
+#
+# Note: GitHub disables scheduled workflows after 60 days of no commits to
+# the repository. It emails you first, and re-enabling is one button.
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    - cron: '17 6 * * 1,4' # Mondays and Thursdays, 06:17 UTC
+  workflow_dispatch: # and on demand, from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the REST API
+        run: |
+          status=$(curl -sS -o /dev/null -w '%{http_code}' \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "HTTP $status"
+          # 200 with zero rows is the expected answer: row-level security is
+          # doing its job and the project is awake.
+          test "$status" = "200"

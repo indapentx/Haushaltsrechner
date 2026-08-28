@@ -3,31 +3,44 @@ import { isConfigured, supabase } from '../lib/supabase';
 import { Button, Micro, Rule, TextInput } from '../components/ui';
 
 /**
- * Email only — no passwords, no OAuth.
+ * Email and password.
  *
- * Link only, no six-digit code: Supabase will not let the email template be
- * edited on the free tier without custom SMTP, and its default template sends
- * a link and nothing else. See the README for how to add the code back if
- * SMTP is ever configured.
+ * A deliberate departure from the spec's "magic link only": this app gets
+ * opened once or twice a month, and iOS deletes a site's stored session after
+ * seven days without a visit. With magic links that meant an email round trip
+ * on every single visit. A password is autofilled by iCloud Keychain instead,
+ * and it also removes the reason the app could not be installed to the home
+ * screen — installed apps are exempt from the seven-day rule, so the session
+ * now survives indefinitely.
+ *
+ * There is no sign-up form on purpose. The one account is created by hand in
+ * the Supabase dashboard, so the public URL cannot be used by a stranger to
+ * make accounts in the project. See the README.
  */
 export default function SignIn() {
   const [email, setEmail] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function sendLink(e?: { preventDefault: () => void }) {
+  async function submit(e?: { preventDefault: () => void }) {
     e?.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !password) return;
     setBusy(true);
     setMessage(null);
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
+      password,
     });
     setBusy(false);
-    if (error) setMessage(error.message);
-    else setSent(true);
+    if (error) {
+      setMessage(
+        error.message === 'Invalid login credentials'
+          ? 'That email and password do not match an account.'
+          : error.message,
+      );
+    }
+    // Success needs no handling: onAuthStateChange swaps the screen.
   }
 
   if (!isConfigured) {
@@ -46,52 +59,49 @@ export default function SignIn() {
 
   return (
     <Shell>
-      {!sent ? (
-        <form onSubmit={sendLink}>
-          <label className="block">
-            <Micro>Email</Micro>
-            <TextInput
-              className="mt-2"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              autoCapitalize="none"
-              autoCorrect="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
-          </label>
-          <Button type="submit" variant="solid" className="mt-5 w-full" disabled={busy || !email.trim()}>
-            {busy ? 'Sending' : 'Send link'}
-          </Button>
-        </form>
-      ) : (
-        <div>
-          <Micro>Check your email</Micro>
-          <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-            A sign-in link is on its way to{' '}
-            <span className="text-text">{email}</span>. Open it on this device
-            and you will land back here signed in.
-          </p>
-          <div className="mt-6 flex justify-between">
-            <Button
-              variant="quiet"
-              className="px-0"
-              onClick={() => {
-                setSent(false);
-                setMessage(null);
-              }}
-            >
-              Change email
-            </Button>
-            <Button variant="quiet" className="px-0" disabled={busy} onClick={() => sendLink()}>
-              Resend
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* A real form with these autocomplete values is what lets iCloud
+          Keychain offer to save and then fill the pair. */}
+      <form onSubmit={submit}>
+        <label className="block">
+          <Micro>Email</Micro>
+          <TextInput
+            className="mt-2"
+            type="email"
+            name="email"
+            inputMode="email"
+            autoComplete="username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+          />
+        </label>
+
+        <label className="mt-5 block">
+          <Micro>Password</Micro>
+          <TextInput
+            className="mt-2"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            enterKeyHint="go"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </label>
+
+        <Button
+          type="submit"
+          variant="solid"
+          className="mt-6 w-full"
+          disabled={busy || !email.trim() || !password}
+        >
+          {busy ? 'Signing in' : 'Sign in'}
+        </Button>
+      </form>
 
       {message && (
         <p className="mt-6 border border-rule p-3 text-[13px] leading-relaxed text-text-secondary">

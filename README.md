@@ -35,14 +35,18 @@ hierarchy. That constraint is the design.
 3. **Authentication → URL Configuration**: set Site URL to
    `http://localhost:5173` and add `http://localhost:5173/**` under Redirect
    URLs. Add the deployed address here too once it exists.
-4. **Project Settings → API**: copy the **Project URL** and the **anon/public**
+4. **Authentication → Users → Add user → Create new user**: enter your email
+   and a password, and tick **Auto Confirm User**. This is the only account
+   the app will ever have — there is no sign-up form, on purpose.
+5. **Authentication → Sign In / Providers → Email**: turn **off** "Allow new
+   users to sign up". Without this, anyone who finds the deployed URL could
+   create accounts in your project.
+6. **Project Settings → API**: copy the **Project URL** and the **anon/public**
    key (newer dashboards call it the *publishable* key, `sb_publishable_…`).
    Never use the `service_role` / secret key — it bypasses row-level security.
 
-There is nothing to do under **Authentication → Emails**. Supabase locks the
-email templates on the free tier unless you connect custom SMTP, and its
-default template sends a sign-in link and nothing else. That is what the app
-is built around.
+There is nothing to do under **Authentication → Emails**. The app does not
+send any email.
 
 ### 2. Local
 
@@ -59,75 +63,70 @@ variables the sign-in screen says so plainly rather than failing silently.
 
 ## Signing in
 
-Email only. No passwords, no OAuth providers. One account — the multi-profile
-feature lives *inside* that account and is not multi-user.
+Email and password. One account — the multi-profile feature lives *inside*
+that account and is not multi-user.
 
-Enter your email, tap **Send link**, then open the link from the email on the
-same device. You land back in the app signed in, and the session persists and
-refreshes itself from then on. In practice you sign in once per device.
+The form is marked up so **iCloud Keychain** offers to save the password the
+first time and fills it thereafter, which makes signing in two taps.
 
-Supabase's built-in email sender is rate-limited to a few messages an hour on
-the free tier. Fine for something you do this rarely; rapid resends will be
-refused.
+### Why not the magic link the spec asked for
 
-### Why there is no six-digit code
+The spec called for magic-link auth and no passwords. That was changed
+deliberately, because of how this app actually gets used — once or twice a
+month:
 
-A link tapped in iOS Mail opens in **Safari**. If you had installed the app to
-the home screen, it would have its own storage, so a session created in Safari
-would leave the installed app still signed out. A six-digit code typed straight
-into the app is the usual fix for that.
+- **iOS deletes a website's stored data after seven days without a visit.**
+  At monthly usage, a magic link meant a full email round trip on *every*
+  visit: open app, type email, wait for mail, tap link.
+- **Supabase locks its email templates** on the free tier unless you connect
+  custom SMTP, so its emails could not carry a six-digit code — and a link
+  tapped in Mail opens Safari, which has separate storage from an installed
+  home-screen app. That combination made installing the app impossible.
 
-Supabase will not send one on the free tier: editing the email template
-requires custom SMTP, and the default template contains only the link. Rather
-than add a mail provider for a once-per-device action, this app runs in Safari
-on the phone — where the link works perfectly.
+A password removes both problems at once. Keychain autofills it, and because
+an installed home-screen app is exempt from the seven-day rule, the session
+now persists indefinitely.
 
-**If you ever connect custom SMTP**, the template unlocks. Add this to the
-Magic Link body:
+### Forgotten password
 
-```html
-<p>Or enter this code: <strong>{{ .Token }}</strong></p>
-```
-
-and restore the code field in `src/screens/SignIn.tsx` — a text input feeding
-`supabase.auth.verifyOtp({ email, token, type: 'email' })`. That is the whole
-change.
+There is no reset flow in the app, because there is no email sending. Set a
+new one in **Supabase → Authentication → Users → ⋯ → Reset password**, or
+delete the user and create it again.
 
 ## On the phone
 
-Open the deployed address in **Safari** and use it as a normal tab. Tapping the
-sign-in link from your email works, and the session sticks.
+Open the deployed `https://….pages.dev` address in **Safari**, then
+**Share → Add to Home Screen**.
 
-### Adding it to the home screen
+That gives you a full-screen app with its own icon, no browser chrome, and —
+the part that matters here — **exemption from Apple's seven-day storage
+wipe**. Signed in once, you stay signed in, however rarely you open it.
 
-The manifest, icons and service worker are all in place, so **Share → Add to
-Home Screen** in Safari does work and gives you a full-screen app with its own
-icon. One catch to know about before you do:
+Safari is required for installing; Chrome on iOS cannot do it. Once installed
+it runs on its own.
 
-An installed home-screen app has **separate storage from Safari**, so signing
-in inside it needs the six-digit code that Supabase will not send without
-custom SMTP. You would be installed but unable to sign in.
+The app shell is cached, so it opens instantly and works offline. Data always
+needs the network: there are no offline writes in v1, so there is no sync
+conflict to resolve.
 
-So: install it only after setting up SMTP and restoring the code field, as
-described under [Signing in](#signing-in).
+## Keeping Supabase awake
 
-### One thing to know about Safari
+Supabase pauses a free project after about a week with no activity. Unpausing
+is one button in their dashboard and **loses no data**, but for an app opened
+once a month it would mean arriving to a sleeping database every single time.
 
-iOS deletes a website's stored data after **seven days without visiting it**.
-If you go a full week without opening the app, you will be signed out and need
-a fresh link. Opening it even once a week avoids that entirely — and Supabase
-pauses an idle free project on roughly the same schedule anyway.
+[`.github/workflows/keepalive.yml`](.github/workflows/keepalive.yml) prevents
+that: a GitHub Action pings the REST API twice a week. Add two repository
+secrets under **Settings → Secrets and variables → Actions**:
 
-Installed home-screen apps are exempt from that seven-day rule. It is the one
-real advantage of installing, if you ever set up SMTP.
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 
-## Supabase pauses free projects
+You can trigger it by hand from the **Actions** tab to check it works — a
+green run means HTTP 200 and an awake project.
 
-After about a week with no activity, Supabase pauses a free project and the app
-will fail to load data. Unpausing is one button in the Supabase dashboard and
-**loses no data**. Normal use of this app keeps it awake.
-
----
+GitHub disables scheduled workflows after 60 days with no commits to the
+repository. It emails you first, and re-enabling is one button.
 
 ## Changing the cycle anchor day
 
