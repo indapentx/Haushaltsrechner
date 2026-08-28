@@ -44,6 +44,20 @@
     overscroll-behavior-y: none;
   }
 
+  /* The browser's own selection highlight is the last hue left in the UI. */
+  ::selection {
+    background-color: var(--color-text);
+    color: var(--color-ink);
+  }
+
+  /* Controls should not select on a double tap. */
+  button,
+  [role='checkbox'],
+  nav {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   /* Override the browser default focus ring explicitly. */
   :focus {
     outline: none;

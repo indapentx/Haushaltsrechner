@@ -84,7 +84,7 @@ export default function Checklist() {
         <Micro>Add item</Micro>
         <div className="mt-2 flex gap-2">
           <TextInput
-            className="flex-1"
+            className="min-w-0 flex-1 basis-0"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
@@ -93,7 +93,7 @@ export default function Checklist() {
             }}
           />
           <TextInput
-            className="w-32 font-mono tnum"
+            className="w-24 shrink-0 grow-0 basis-24 font-mono tnum"
             value={amount}
             inputMode="decimal"
             enterKeyHint="done"

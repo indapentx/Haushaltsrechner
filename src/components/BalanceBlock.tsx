@@ -85,7 +85,7 @@ export function BalanceBlock({
                 autoFocus
                 inputMode="decimal"
                 enterKeyHint="done"
-                className={`mt-1.5 block w-full font-mono tnum text-[18px] outline-none ${
+                className={`block w-full font-mono tnum text-[18px] outline-none ${
                   negative ? 'text-black' : 'text-text'
                 }`}
                 value={incomeDraft}
@@ -134,12 +134,12 @@ function Figure({
   editor?: ReactNode;
 }) {
   const body = (
-    <>
+    <div className="flex h-full flex-col justify-between gap-1.5">
       <span className={`micro block ${negative ? 'text-black' : 'text-text-secondary'}`}>
         {label}
       </span>
-      {editor ?? <span className="mt-1.5 block font-mono tnum text-[18px]">{value}</span>}
-    </>
+      {editor ?? <span className="block font-mono tnum text-[18px]">{value}</span>}
+    </div>
   );
 
   const divider = divided
@@ -149,7 +149,7 @@ function Figure({
     : '';
 
   if (editor) {
-    return <div className={`px-4 py-4 ${divider}`}>{body}</div>;
+    return <div className={`px-3 py-4 ${divider}`}>{body}</div>;
   }
 
   if (onClick) {
@@ -157,7 +157,7 @@ function Figure({
       <button
         type="button"
         onClick={onClick}
-        className={`px-4 py-4 text-left ${divider}`}
+        className={`px-3 py-4 text-left ${divider}`}
         aria-label={`${label} — tap to edit`}
       >
         {body}
@@ -165,5 +165,5 @@ function Figure({
     );
   }
 
-  return <div className={`px-4 py-4 ${divider}`}>{body}</div>;
+  return <div className={`px-3 py-4 ${divider}`}>{body}</div>;
 }
