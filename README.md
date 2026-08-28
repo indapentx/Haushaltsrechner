@@ -19,7 +19,7 @@ hierarchy. That constraint is the design.
 | Frontend | React + TypeScript, built with Vite |
 | Styling | Tailwind v4 with a custom monochrome token set |
 | Database + auth | Supabase (free tier) |
-| Hosting | Cloudflare Pages (free tier) |
+| Hosting | GitHub Pages (free tier) |
 | Phone | PWA — Add to Home Screen, no Apple Developer account needed |
 
 ---
@@ -174,27 +174,50 @@ that wrong makes the app roll over at 3am on the 24th for anyone east of UTC.
 
 ---
 
-## Deploying to Cloudflare Pages
+## Deploying
 
-1. Push this repository to GitHub.
-2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**,
-   and pick the repository.
-3. Build settings:
-   - **Framework preset:** None
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-4. **Environment variables** — add both, or the deployed app cannot reach the
-   database:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-5. Deploy, then go back to **Supabase → Authentication → URL Configuration**
-   and add the new `https://….pages.dev` address to Site URL and Redirect URLs.
-   Sign-in emails will not work until you do.
+The site is published to **GitHub Pages** by
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push
+to `main`. It runs the tests first, so a red test never reaches the live site.
 
-`public/_redirects` handles the SPA fallback and `public/_headers` sets cache
-policy: hashed assets forever, the shell and service worker never.
+### One-time setup
 
----
+1. Push this repository to GitHub. It must be **public** — GitHub Pages only
+   serves private repositories on paid plans.
+2. **Settings → Pages → Source**: choose **GitHub Actions**.
+3. **Settings → Secrets and variables → Actions → New repository secret**, add
+   both:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+4. Push, or run the **Deploy** workflow by hand from the Actions tab.
+
+The site lands at `https://<username>.github.io/Haushaltsrechner/`.
+
+### About the public repository
+
+Nothing sensitive is in it. `.env.local` is git-ignored, and the anon key
+lives in Actions secrets. Your budget data is in Supabase behind the
+row-level security policies — see
+[Is the anon key safe in the browser?](#is-the-anon-key-safe-in-the-browser)
+
+### About the subdirectory
+
+GitHub Pages serves a project site from `/Haushaltsrechner/`, not the domain
+root, so the production build bakes that prefix in via `base` in
+`vite.config.ts`. Everything that could break on a subpath is handled:
+
+- Fonts live in `src/fonts/`, not `public/`, so the bundler rewrites their
+  URLs. Absolute `/fonts/…` would 404.
+- The manifest's `start_url`, `scope` and icon paths are built from `base`,
+  so the installed app opens the subdirectory rather than the top of the site.
+- The service worker registers with the subdirectory as its scope.
+
+If the repository is ever renamed, set `BASE_PATH` when building, or edit the
+one constant at the top of `vite.config.ts`.
+
+GitHub Pages ignores Cloudflare's `_headers` and `_redirects`, so there is no
+cache-control tuning. It makes no practical difference at this size, and the
+app has a single route, so it never needs an SPA fallback.
 
 ## Is the anon key safe in the browser?
 
