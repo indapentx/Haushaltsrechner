@@ -1,0 +1,101 @@
+@import "./fonts.css";
+@import "tailwindcss";
+
+/*
+ * Non-negotiable #2: strictly monochrome.
+ * Every default palette and font is wiped first, so a stray hue utility
+ * generates nothing. `scripts/check-monochrome.mjs` is what actually fails
+ * the build if a hue reaches the source.
+ */
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+
+  --color-ink: #000000;
+  --color-surface: #121212;
+  --color-surface-raised: #1c1c1c;
+  --color-rule: #2b2b2b;
+  --color-text-muted: #6e6e6e;
+  --color-text-secondary: #a8a8a8;
+  --color-text: #f2f2f2;
+
+  /* Only for the two inversions the spec calls for: negative balance,
+     active profile pill. */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --font-sans: "Inter Tight Variable", "Inter Tight", ui-sans-serif, system-ui,
+    -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    background-color: var(--color-ink);
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Override the browser default focus ring explicitly. */
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-text);
+    outline-offset: 2px;
+  }
+
+  /* iOS zooms on focus below 16px. */
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    font-size: 16px;
+    color: inherit;
+    background: none;
+    border: 0;
+  }
+
+  input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  /* Chrome/Safari autofill repaints with a colour we never asked for. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--color-text);
+    -webkit-box-shadow: 0 0 0 1000px var(--color-surface-raised) inset;
+  }
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Micro-labels: INCOME, COMMITTED, STILL TO PAY, cycle dates. */
+@utility micro {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
