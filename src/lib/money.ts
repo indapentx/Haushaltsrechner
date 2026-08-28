@@ -107,3 +107,16 @@ export function toAmount(value: unknown): number {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) ? n : 0;
 }
+
+/**
+ * The value as you would type it: no grouping, the locale's decimal
+ * separator, and no trailing `,00` to delete before retyping.
+ */
+export function toEditableString(value: number, currency: string): string {
+  if (!value) return '';
+  const separator = new Intl.NumberFormat(localeFor(currency))
+    .formatToParts(1.5)
+    .find((part) => part.type === 'decimal')?.value ?? '.';
+  const [whole, fraction] = value.toFixed(2).split('.');
+  return fraction === '00' ? whole : `${whole}${separator}${fraction}`;
+}

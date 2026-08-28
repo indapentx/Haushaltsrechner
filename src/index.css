@@ -99,3 +99,16 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@keyframes balance-fade {
+  from {
+    opacity: 0.3;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@utility balance-fade {
+  animation: balance-fade 180ms ease-out;
+}
