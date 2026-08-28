@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
-const SCAN_DIRS = ['src', 'scripts'];
+// public/ ships verbatim, so it needs checking just as much as src/.
+const SCAN_DIRS = ['src', 'scripts', 'public'];
 const SCAN_FILES = ['index.html'];
 const SCAN_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.css', '.html', '.svg']);
 // This file necessarily names hues in its own patterns.
