@@ -4,13 +4,21 @@
     {
       "name": "haushaltsrechner",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host"
+      ],
       "port": 5173
     },
     {
       "name": "haushaltsrechner-build",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "preview"],
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
       "port": 4173
     }
   ]
