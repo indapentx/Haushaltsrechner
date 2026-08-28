@@ -5,15 +5,13 @@ import { Button, Micro, Rule, TextInput } from '../components/ui';
 /**
  * Email only — no passwords, no OAuth.
  *
- * The email carries both a link and a 6-digit code. The link is for the
- * laptop. The code is for the iPhone: a link tapped in Mail opens Safari,
- * and a home-screen PWA has its own storage, so a session created in Safari
- * leaves the installed app still signed out. Typing the code into the PWA
- * creates the session where it is actually needed.
+ * Link only, no six-digit code: Supabase will not let the email template be
+ * edited on the free tier without custom SMTP, and its default template sends
+ * a link and nothing else. See the README for how to add the code back if
+ * SMTP is ever configured.
  */
 export default function SignIn() {
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -30,22 +28,6 @@ export default function SignIn() {
     setBusy(false);
     if (error) setMessage(error.message);
     else setSent(true);
-  }
-
-  async function verifyCode(e?: { preventDefault: () => void }) {
-    e?.preventDefault();
-    const token = code.replace(/\D/g, '');
-    if (token.length < 6) return;
-    setBusy(true);
-    setMessage(null);
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token,
-      type: 'email',
-    });
-    setBusy(false);
-    if (error) setMessage(error.message);
-    // Success needs no handling: onAuthStateChange swaps the screen.
   }
 
   if (!isConfigured) {
@@ -86,36 +68,19 @@ export default function SignIn() {
           </Button>
         </form>
       ) : (
-        <form onSubmit={verifyCode}>
+        <div>
           <Micro>Check your email</Micro>
-          <p className="mt-3 text-text-secondary text-[15px] leading-relaxed">
-            Sent to <span className="text-text">{email}</span>. Tap the link on this
-            device, or type the six-digit code below.
+          <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
+            A sign-in link is on its way to{' '}
+            <span className="text-text">{email}</span>. Open it on this device
+            and you will land back here signed in.
           </p>
-          <div className="mt-6">
-            <label className="block">
-              <Micro>Code</Micro>
-              <TextInput
-                className="mt-2 font-mono tnum text-[20px] tracking-[0.3em]"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="000000"
-              />
-            </label>
-          </div>
-          <Button type="submit" variant="solid" className="mt-5 w-full" disabled={busy || code.length < 6}>
-            {busy ? 'Checking' : 'Sign in'}
-          </Button>
-          <div className="mt-4 flex justify-between">
+          <div className="mt-6 flex justify-between">
             <Button
               variant="quiet"
               className="px-0"
               onClick={() => {
                 setSent(false);
-                setCode('');
                 setMessage(null);
               }}
             >
@@ -125,7 +90,7 @@ export default function SignIn() {
               Resend
             </Button>
           </div>
-        </form>
+        </div>
       )}
 
       {message && (

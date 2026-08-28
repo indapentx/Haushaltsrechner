@@ -32,20 +32,17 @@ hierarchy. That constraint is the design.
 2. **SQL Editor → New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql)
    and run it. It creates the three tables, the row-level security policies and
    the `ensure_cycle` rollover function. It is safe to re-run.
-3. **Authentication → Emails → Magic Link**: add this line to the template.
-   Without it, signing in on the iPhone will not work — see
-   [Signing in](#signing-in) for why.
-
-   ```html
-   <p>Or enter this code: <strong>{{ .Token }}</strong></p>
-   ```
-
-4. **Authentication → URL Configuration**: set Site URL to
+3. **Authentication → URL Configuration**: set Site URL to
    `http://localhost:5173` and add `http://localhost:5173/**` under Redirect
    URLs. Add the deployed address here too once it exists.
-5. **Project Settings → API**: copy the **Project URL** and the **anon/public**
+4. **Project Settings → API**: copy the **Project URL** and the **anon/public**
    key (newer dashboards call it the *publishable* key, `sb_publishable_…`).
    Never use the `service_role` / secret key — it bypasses row-level security.
+
+There is nothing to do under **Authentication → Emails**. Supabase locks the
+email templates on the free tier unless you connect custom SMTP, and its
+default template sends a sign-in link and nothing else. That is what the app
+is built around.
 
 ### 2. Local
 
@@ -65,36 +62,64 @@ variables the sign-in screen says so plainly rather than failing silently.
 Email only. No passwords, no OAuth providers. One account — the multi-profile
 feature lives *inside* that account and is not multi-user.
 
-The email carries **both a link and a six-digit code**:
-
-- **On the laptop**, click the link.
-- **On the iPhone**, type the code into the app.
-
-This is not belt-and-braces. A link tapped in iOS Mail opens in Safari, and a
-home-screen web app has its own storage, so a session created in Safari leaves
-the installed app still signed out. Typing the code into the installed app
-creates the session where you actually need it.
+Enter your email, tap **Send link**, then open the link from the email on the
+same device. You land back in the app signed in, and the session persists and
+refreshes itself from then on. In practice you sign in once per device.
 
 Supabase's built-in email sender is rate-limited to a few messages an hour on
-the free tier. Fine for one person; rapid resends will be refused.
+the free tier. Fine for something you do this rarely; rapid resends will be
+refused.
 
----
+### Why there is no six-digit code
 
-## Add to Home Screen (iOS)
+A link tapped in iOS Mail opens in **Safari**. If you had installed the app to
+the home screen, it would have its own storage, so a session created in Safari
+would leave the installed app still signed out. A six-digit code typed straight
+into the app is the usual fix for that.
 
-1. Open the deployed address in **Safari** (not Chrome — only Safari can
-   install a web app).
-2. Tap the **Share** button, then **Add to Home Screen**.
-3. Name it and tap **Add**.
+Supabase will not send one on the free tier: editing the email template
+requires custom SMTP, and the default template contains only the link. Rather
+than add a mail provider for a once-per-device action, this app runs in Safari
+on the phone — where the link works perfectly.
 
-It then launches full-screen with no browser chrome, keeps its own session,
-and survives reboots. There is no seven-day expiry — that limit applies to
-sideloaded native apps, not web apps.
+**If you ever connect custom SMTP**, the template unlocks. Add this to the
+Magic Link body:
 
-The app shell works offline, but data always needs the network. There are no
-offline writes in v1, so there is no sync conflict to resolve.
+```html
+<p>Or enter this code: <strong>{{ .Token }}</strong></p>
+```
 
----
+and restore the code field in `src/screens/SignIn.tsx` — a text input feeding
+`supabase.auth.verifyOtp({ email, token, type: 'email' })`. That is the whole
+change.
+
+## On the phone
+
+Open the deployed address in **Safari** and use it as a normal tab. Tapping the
+sign-in link from your email works, and the session sticks.
+
+### Adding it to the home screen
+
+The manifest, icons and service worker are all in place, so **Share → Add to
+Home Screen** in Safari does work and gives you a full-screen app with its own
+icon. One catch to know about before you do:
+
+An installed home-screen app has **separate storage from Safari**, so signing
+in inside it needs the six-digit code that Supabase will not send without
+custom SMTP. You would be installed but unable to sign in.
+
+So: install it only after setting up SMTP and restoring the code field, as
+described under [Signing in](#signing-in).
+
+### One thing to know about Safari
+
+iOS deletes a website's stored data after **seven days without visiting it**.
+If you go a full week without opening the app, you will be signed out and need
+a fresh link. Opening it even once a week avoids that entirely — and Supabase
+pauses an idle free project on roughly the same schedule anyway.
+
+Installed home-screen apps are exempt from that seven-day rule. It is the one
+real advantage of installing, if you ever set up SMTP.
 
 ## Supabase pauses free projects
 
