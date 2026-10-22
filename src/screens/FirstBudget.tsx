@@ -1,27 +1,28 @@
 import { useState } from 'react';
-import { Button, Micro, Rule, TextInput } from '../components/ui';
+import { Button, CurrencyChips, Micro, Rule, TextInput } from '../components/ui';
+import { CURRENCIES } from '../lib/money';
 import { useBudget } from '../state/store';
 
 /**
- * Where you land with an account but no household: either start one, or
- * join the one someone you live with has already made.
+ * What you see with no budgets at all: start one, or accept a code for
+ * someone else's.
  *
- * This is also what a stranger who signs up sees — and all they will ever
- * see, because row-level security gives an account with no membership
- * access to nothing.
+ * This is also all a stranger who signs up will ever see. An account on its
+ * own opens nothing — access comes from owning a budget or being given a
+ * code for one.
  */
-export default function HouseholdGate() {
-  const { createHousehold, joinHousehold } = useBudget();
+export default function FirstBudget() {
+  const { addProfile, joinProfile } = useBudget();
   const [mode, setMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [name, setName] = useState('');
+  const [currency, setCurrency] = useState<string>('TRY');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   async function create() {
     setBusy(true);
-    setMessage(null);
-    await createHousehold(name.trim() || 'Haushalt');
+    await addProfile(name.trim() || 'Haushalt', currency);
     setBusy(false);
   }
 
@@ -29,7 +30,7 @@ export default function HouseholdGate() {
     setBusy(true);
     setMessage(null);
     try {
-      await joinHousehold(code.trim().toUpperCase());
+      await joinProfile(code.trim().toUpperCase());
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     }
@@ -44,13 +45,13 @@ export default function HouseholdGate() {
 
         {mode === 'choose' && (
           <>
-            <Micro>No household yet</Micro>
+            <Micro>No budgets yet</Micro>
             <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-              A household holds the budgets. Everyone who lives in it shares the
-              same one, each from their own account.
+              Start one of your own, or join a budget somebody has shared with
+              you.
             </p>
             <Button variant="solid" className="mt-6 w-full" onClick={() => setMode('create')}>
-              Start a household
+              Start a budget
             </Button>
             <Button variant="outline" className="mt-3 w-full" onClick={() => setMode('join')}>
               Join with a code
@@ -60,17 +61,30 @@ export default function HouseholdGate() {
 
         {mode === 'create' && (
           <>
-            <Micro>Name the household</Micro>
+            <Micro>Name it</Micro>
+            <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
+              After whoever or whatever the money belongs to. You can add more
+              later, and share them one at a time.
+            </p>
             <TextInput
-              className="mt-3"
+              className="mt-4"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Haushalt"
+              placeholder="Ev"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void create();
               }}
             />
-            <Button variant="solid" className="mt-4 w-full" disabled={busy} onClick={create}>
+            <div className="mt-4">
+              <Micro>Currency</Micro>
+              <CurrencyChips
+                className="mt-2"
+                value={currency}
+                options={CURRENCIES}
+                onChange={setCurrency}
+              />
+            </div>
+            <Button variant="solid" className="mt-5 w-full" disabled={busy} onClick={create}>
               {busy ? 'Creating' : 'Create'}
             </Button>
             <Button variant="quiet" className="mt-3 w-full" onClick={() => setMode('choose')}>
@@ -83,11 +97,11 @@ export default function HouseholdGate() {
           <>
             <Micro>Join code</Micro>
             <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-              Ask whoever set up the household for the code. They will find it
-              under Settings.
+              Ask whoever owns the budget for its code. They will find it under
+              Settings. It lets you into that one budget and nothing else.
             </p>
             <TextInput
-              className="mt-4 font-mono tnum text-[18px] tracking-[0.2em] uppercase"
+              className="mt-4 font-mono tnum text-[18px] uppercase tracking-[0.2em]"
               value={code}
               autoCapitalize="characters"
               autoCorrect="off"

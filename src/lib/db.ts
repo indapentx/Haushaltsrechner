@@ -105,30 +105,6 @@ export async function renameHousehold(id: string, name: string): Promise<void> {
   await supabase.from('households').update({ name }).eq('id', id).throwOnError();
 }
 
-export async function listMembers(householdId: string): Promise<HouseholdMember[]> {
-  const { data } = await supabase
-    .rpc('household_member_list', { p_household: householdId })
-    .throwOnError();
-  return data;
-}
-
-export async function getJoinCode(householdId: string): Promise<string | null> {
-  const { data } = await supabase
-    .from('household_invites')
-    .select('code')
-    .eq('household_id', householdId)
-    .limit(1)
-    .throwOnError();
-  return data.length > 0 ? data[0].code : null;
-}
-
-export async function rotateJoinCode(householdId: string): Promise<string> {
-  const { data } = await supabase
-    .rpc('rotate_join_code', { p_household: householdId })
-    .throwOnError();
-  return data;
-}
-
 export async function removeMember(householdId: string, userId: string): Promise<void> {
   await supabase
     .from('household_members')
@@ -138,13 +114,80 @@ export async function removeMember(householdId: string, userId: string): Promise
     .throwOnError();
 }
 
+// ------------------------------------------------- sharing one budget
+
+export interface ProfileMember {
+  user_id: string;
+  email: string;
+  joined_at: string;
+}
+
+/** The code for this budget, or null if it is not shared. */
+export async function getShareCode(profileId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('profile_invites')
+    .select('code')
+    .eq('profile_id', profileId)
+    .limit(1)
+    .throwOnError();
+  return data.length > 0 ? data[0].code : null;
+}
+
+/** Start sharing, or return the code it already has. */
+export async function shareProfile(profileId: string): Promise<string> {
+  const { data } = await supabase
+    .rpc('share_profile', { p_profile: profileId })
+    .throwOnError();
+  return data;
+}
+
+export async function rotateShareCode(profileId: string): Promise<string> {
+  const { data } = await supabase
+    .rpc('rotate_profile_code', { p_profile: profileId })
+    .throwOnError();
+  return data;
+}
+
+/** Stop sharing: the code dies and everyone it was shared with is removed. */
+export async function unshareProfile(profileId: string): Promise<void> {
+  await supabase.rpc('unshare_profile', { p_profile: profileId }).throwOnError();
+}
+
+export async function joinProfile(code: string): Promise<Profile> {
+  const { data } = await supabase.rpc('join_profile', { p_code: code }).throwOnError();
+  return data;
+}
+
+export async function listProfileMembers(profileId: string): Promise<ProfileMember[]> {
+  const { data } = await supabase
+    .rpc('profile_member_list', { p_profile: profileId })
+    .throwOnError();
+  return data;
+}
+
+export async function removeProfileMember(
+  profileId: string,
+  userId: string,
+): Promise<void> {
+  await supabase
+    .from('profile_members')
+    .delete()
+    .eq('profile_id', profileId)
+    .eq('user_id', userId)
+    .throwOnError();
+}
+
 // -------------------------------------------------------------- profiles
 
-export async function listProfiles(householdId: string): Promise<Profile[]> {
+/**
+ * Every budget this account can open: its own household's, plus any that
+ * have been shared with it. The filtering is row-level security's job — ask
+ * for them all and it returns the ones you are allowed.
+ */
+export async function listProfiles(): Promise<Profile[]> {
   const { data } = await supabase
     .from('profiles')
     .select('*')
-    .eq('household_id', householdId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
     .throwOnError();

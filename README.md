@@ -33,8 +33,9 @@ hierarchy. That constraint is the design.
 
 1. Create a project. Region: **Central EU (Frankfurt)** if you are in Istanbul.
 2. **SQL Editor → New query**: run the migrations in order,
-   [`001_initial.sql`](supabase/migrations/001_initial.sql) then
-   [`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql).
+   [`001_initial.sql`](supabase/migrations/001_initial.sql),
+   [`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql),
+   then [`003_share_single_budget.sql`](supabase/migrations/003_share_single_budget.sql).
    Each is a single transaction and safe to re-run. Together they create the
    tables, the row-level security policies, the rollover function and the
    household sharing machinery.
@@ -57,8 +58,9 @@ send any email.
 
 ### 2. Upgrading a project that already has data
 
-If the project predates households and currencies, it only needs
-[`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql).
+Run whichever migrations the project has not had yet, in order. 002 adds
+households and currencies; 003 moves sharing down from the household to the
+individual budget and revokes any household-wide code.
 **Take a backup first** (Database → Backups). The whole migration is one
 transaction, so a failure changes nothing, and it moves your existing data
 rather than replacing it: your profiles become household-owned, you become
@@ -118,34 +120,40 @@ There is no reset flow in the app, because there is no email sending. Set a
 new one in **Supabase → Authentication → Users → ⋯ → Reset password**, or
 delete the user and create it again.
 
-## Sharing a household
+## Sharing one budget
 
-A **household** owns the budgets. Any number of accounts can be members of
-one, and every member can do everything: add items, change prices, tick
-things off, edit income.
+Sharing happens **per budget**, not per account. If you keep three sets of
+books — the flat, the business, something else — you can share exactly one
+and the others stay invisible to everyone but you.
 
-People join with a **code**, not an email invite, because this project sends
-no email. The code looks like `K7M2-QX4P` and lives under **Settings → Join
-code**.
+Each budget has its own code. Under **Settings → Sharing**:
 
-1. They create an account on the sign-in screen.
-2. They choose **Join with a code** and enter it.
-3. They see the same budgets you do, immediately.
+1. Pick the budget in the switcher at the top of the Overview
+2. **Share this budget** — you get a code like `K7M2-QX4P`
+3. Send it to whoever you live with
 
-**Rotate the code** from Settings when you want to stop anyone else joining.
-People who are already in stay in; the old code simply stops working.
+They create their own account, tap **Join with a code**, and that one budget
+appears in their switcher. They can add items, change prices, tick things off
+and edit income — everything about the money. They cannot rename the budget,
+change its currency or delete it, and they cannot see anything else you own.
 
-Whoever created the household is its **owner**, and that is the only
-asymmetry: owners rename the household, rotate the code and remove members.
-Everything about the money itself is equal. Any member can leave on their
-own, which removes their access and deletes nothing.
+**Change code** issues a new one and kills the old; people already in stay
+in. **Stop sharing** kills the code *and* removes everyone. You can also
+remove one person from the Shared with list. Anyone given a budget can leave
+it themselves, which deletes nothing.
+
+### Households are plumbing
+
+Every account quietly gets a household the first time it signs in — it is
+just the private container your own budgets live in, and you never have to
+think about it. An earlier version shared at that level, which meant
+all-or-nothing; migration 003 moved sharing down to the budget.
 
 ### Why open sign-up is safe here
 
-Anyone who finds the URL can create an account, and that account can see
-precisely nothing. Row-level security grants access through household
-membership alone, and membership requires the code. A stranger who signs up
-lands on the "create or join a household" screen and stops there.
+Anyone who finds the URL can create an account, and that account opens
+nothing. Access comes from owning a budget or holding a code for one. A
+stranger who signs up lands on "no budgets yet" and stops there.
 
 ## Currencies
 

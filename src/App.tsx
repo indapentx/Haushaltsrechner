@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { TabBar, type Tab } from './components/TabBar';
-import { Button, Micro, Rule, TextInput } from './components/ui';
+import { Button } from './components/ui';
 import Checklist from './screens/Checklist';
 import Expenses from './screens/Expenses';
 import Overview from './screens/Overview';
 import Settings from './screens/Settings';
-import HouseholdGate from './screens/HouseholdGate';
+import FirstBudget from './screens/FirstBudget';
 import SignIn from './screens/SignIn';
 import { BudgetProvider, useBudget } from './state/store';
 import { useAuth } from './state/useAuth';
@@ -24,12 +24,11 @@ export default function App() {
 }
 
 function Main() {
-  const { loading, householdId, profiles, error, dismissError } = useBudget();
+  const { loading, profiles, error, dismissError } = useBudget();
   const [tab, setTab] = useState<Tab>('Overview');
 
   if (loading) return <Splash />;
-  if (!householdId) return <HouseholdGate />;
-  if (profiles.length === 0) return <FirstProfile />;
+  if (profiles.length === 0) return <FirstBudget />;
 
   return (
     <div className="min-h-dvh bg-ink">
@@ -54,43 +53,6 @@ function Main() {
       )}
 
       <TabBar active={tab} onSelect={setTab} />
-    </div>
-  );
-}
-
-/** First run: there is nothing to show until a profile exists. */
-function FirstProfile() {
-  const { addProfile } = useBudget();
-  const [name, setName] = useState('');
-
-  return (
-    <div className="min-h-dvh bg-ink px-6 pt-[max(env(safe-area-inset-top),4rem)]">
-      <div className="mx-auto w-full max-w-sm">
-        <Micro className="text-text">Haushaltsrechner</Micro>
-        <Rule className="mt-3 mb-8" />
-        <Micro>First profile</Micro>
-        <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">
-          Name it after whoever or whatever the money belongs to. You can add more
-          later.
-        </p>
-        <TextInput
-          className="mt-5"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Household"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && name.trim()) void addProfile(name.trim(), 'TRY');
-          }}
-        />
-        <Button
-          variant="solid"
-          className="mt-4 w-full"
-          disabled={!name.trim()}
-          onClick={() => void addProfile(name.trim(), 'TRY')}
-        >
-          Create
-        </Button>
-      </div>
     </div>
   );
 }

@@ -32,6 +32,22 @@ type HouseholdInviteRow = {
   uses: number;
 };
 
+type ProfileMemberRow = {
+  profile_id: string;
+  user_id: string;
+  joined_at: string;
+};
+
+type ProfileInviteRow = {
+  code: string;
+  profile_id: string;
+  created_by: string | null;
+  created_at: string;
+  expires_at: string | null;
+  max_uses: number | null;
+  uses: number;
+};
+
 type ProfileRow = {
   id: string;
   household_id: string;
@@ -109,6 +125,21 @@ export type Database = {
         Update: Partial<HouseholdInviteRow>;
         Relationships: [];
       };
+      profile_members: {
+        Row: ProfileMemberRow;
+        Insert: Defaulted<ProfileMemberRow, 'joined_at'>;
+        Update: Partial<ProfileMemberRow>;
+        Relationships: [];
+      };
+      profile_invites: {
+        Row: ProfileInviteRow;
+        Insert: Defaulted<
+          ProfileInviteRow,
+          'created_by' | 'created_at' | 'expires_at' | 'max_uses' | 'uses'
+        >;
+        Update: Partial<ProfileInviteRow>;
+        Relationships: [];
+      };
       profiles: {
         Row: ProfileRow;
         Insert: Defaulted<ProfileRow, 'id' | 'created_at' | 'currency' | 'sort_order'>;
@@ -171,6 +202,30 @@ export type Database = {
       rotate_join_code: {
         Args: { p_household: string };
         Returns: string;
+      };
+      share_profile: {
+        Args: { p_profile: string };
+        Returns: string;
+      };
+      rotate_profile_code: {
+        Args: { p_profile: string };
+        Returns: string;
+      };
+      unshare_profile: {
+        Args: { p_profile: string };
+        Returns: undefined;
+      };
+      join_profile: {
+        Args: { p_code: string };
+        Returns: ProfileRow;
+      };
+      profile_member_list: {
+        Args: { p_profile: string };
+        Returns: {
+          user_id: string;
+          email: string;
+          joined_at: string;
+        }[];
       };
       household_member_list: {
         Args: { p_household: string };

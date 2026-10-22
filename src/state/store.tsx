@@ -76,8 +76,7 @@ interface BudgetContext extends State {
   totals: Totals;
   /** An amount in its own currency, expressed in the display currency. */
   inDisplay: (row: { amount: number; currency: string; rate_date: string }) => number | null;
-  createHousehold: (name: string) => Promise<void>;
-  joinHousehold: (code: string) => Promise<void>;
+  joinProfile: (code: string) => Promise<void>;
   selectProfile: (id: string) => void;
   addProfile: (name: string, currency: string) => Promise<void>;
   updateActiveProfile: (patch: { name?: string; currency?: string }) => Promise<void>;
@@ -152,16 +151,21 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   const loadHousehold = useCallback(async () => {
     const households = await db.listHouseholds();
     const stored = readStored(ACTIVE_HOUSEHOLD_KEY);
-    const active =
-      households.find((h) => h.id === stored)?.id ?? households[0]?.id ?? null;
-    store(ACTIVE_HOUSEHOLD_KEY, active);
+    let active = households.find((h) => h.id === stored)?.id ?? households[0]?.id ?? null;
 
     if (!active) {
-      patch({ households, householdId: null, profiles: [], loading: false });
-      return;
+      // Every account gets a private container for its own budgets. It is
+      // plumbing, not a concept the user should have to meet — sharing
+      // happens one budget at a time.
+      const created = await db.createHousehold('Haushalt');
+      households.push(created);
+      active = created.id;
     }
+    store(ACTIVE_HOUSEHOLD_KEY, active);
 
-    const profiles = await db.listProfiles(active);
+    // Not filtered by household: this returns your own budgets plus any
+    // shared with you, as decided by row-level security.
+    const profiles = await db.listProfiles();
     const storedProfile = readStored(ACTIVE_PROFILE_KEY);
     const activeProfile =
       profiles.find((p) => p.id === storedProfile)?.id ?? profiles[0]?.id ?? null;
@@ -301,32 +305,20 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
   // ------------------------------------------------------------- actions
 
-  const createHousehold = useCallback(
-    async (name: string) => {
-      try {
-        const household = await db.createHousehold(name);
-        store(ACTIVE_HOUSEHOLD_KEY, household.id);
-        await loadHousehold();
-      } catch (e) {
-        fail(e);
-      }
-    },
-    [loadHousehold, fail],
-  );
-
-  const joinHousehold = useCallback(
+  /** Accept a code for one budget. Nothing else about the owner is exposed. */
+  const joinProfile = useCallback(
     async (code: string) => {
       try {
-        const household = await db.joinHousehold(code);
-        store(ACTIVE_HOUSEHOLD_KEY, household.id);
-        store(ACTIVE_PROFILE_KEY, null);
+        const profile = await db.joinProfile(code);
+        store(ACTIVE_PROFILE_KEY, profile.id);
         await loadHousehold();
+        patch({ activeProfileId: profile.id, cycle: null, items: [], incomes: [] });
       } catch (e) {
         fail(e);
         throw e;
       }
     },
-    [loadHousehold, fail],
+    [loadHousehold, fail, patch],
   );
 
   const refreshHousehold = useCallback(async () => {
@@ -608,8 +600,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     canStepForward: state.viewIndex >= 0 && state.viewIndex < state.cycles.length - 1,
     totals,
     inDisplay,
-    createHousehold,
-    joinHousehold,
+    joinProfile,
     selectProfile,
     addProfile,
     updateActiveProfile,
