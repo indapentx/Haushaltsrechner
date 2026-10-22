@@ -5,6 +5,7 @@ import Checklist from './screens/Checklist';
 import Expenses from './screens/Expenses';
 import Overview from './screens/Overview';
 import Settings from './screens/Settings';
+import HouseholdGate from './screens/HouseholdGate';
 import SignIn from './screens/SignIn';
 import { BudgetProvider, useBudget } from './state/store';
 import { useAuth } from './state/useAuth';
@@ -16,17 +17,18 @@ export default function App() {
   if (!session) return <SignIn />;
 
   return (
-    <BudgetProvider userId={session.user.id}>
+    <BudgetProvider>
       <Main />
     </BudgetProvider>
   );
 }
 
 function Main() {
-  const { loading, profiles, error, dismissError } = useBudget();
+  const { loading, householdId, profiles, error, dismissError } = useBudget();
   const [tab, setTab] = useState<Tab>('Overview');
 
   if (loading) return <Splash />;
+  if (!householdId) return <HouseholdGate />;
   if (profiles.length === 0) return <FirstProfile />;
 
   return (

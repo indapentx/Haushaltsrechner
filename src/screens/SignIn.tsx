@@ -13,13 +13,15 @@ import { Button, Micro, Rule, TextInput } from '../components/ui';
  * screen — installed apps are exempt from the seven-day rule, so the session
  * now survives indefinitely.
  *
- * There is no sign-up form on purpose. The one account is created by hand in
- * the Supabase dashboard, so the public URL cannot be used by a stranger to
- * make accounts in the project. See the README.
+ * Anyone can create an account, because the people you live with need to be
+ * able to. An account on its own is worth nothing: row-level security gives
+ * someone with no household membership access to precisely nothing, and
+ * joining a household requires its code.
  */
 export default function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -28,6 +30,23 @@ export default function SignIn() {
     if (!email.trim() || !password) return;
     setBusy(true);
     setMessage(null);
+
+    if (creating) {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+      });
+      setBusy(false);
+      if (error) {
+        setMessage(error.message);
+      } else if (!data.session) {
+        // The project requires email confirmation before the first sign-in.
+        setMessage('Account created. Confirm your email address, then sign in.');
+        setCreating(false);
+      }
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -85,7 +104,7 @@ export default function SignIn() {
             className="mt-2"
             type="password"
             name="password"
-            autoComplete="current-password"
+            autoComplete={creating ? 'new-password' : 'current-password'}
             enterKeyHint="go"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -99,7 +118,18 @@ export default function SignIn() {
           className="mt-6 w-full"
           disabled={busy || !email.trim() || !password}
         >
-          {busy ? 'Signing in' : 'Sign in'}
+          {busy ? 'Working' : creating ? 'Create account' : 'Sign in'}
+        </Button>
+
+        <Button
+          variant="quiet"
+          className="mt-4 w-full"
+          onClick={() => {
+            setCreating((v) => !v);
+            setMessage(null);
+          }}
+        >
+          {creating ? 'I already have an account' : 'Create an account'}
         </Button>
       </form>
 

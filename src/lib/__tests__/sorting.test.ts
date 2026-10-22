@@ -9,6 +9,9 @@ const item = (over: Partial<Item> & { id: string }): Item => ({
   is_paid: false,
   paid_at: null,
   sort_order: 0,
+  currency: 'TRY',
+  rate_date: '2026-08-25',
+  rate_override: null,
   created_at: '2026-08-25T10:00:00Z',
   ...over,
 });

@@ -1,7 +1,9 @@
 # Haushaltsrechner
 
-A personal monthly budget planner. One account, two or more named profiles,
-syncs between iPhone and laptop, runs entirely on free tiers.
+A monthly budget planner for a household. Everyone who lives there gets
+their own account and shares the same budgets. Items can be entered in
+different currencies and the totals convert. Syncs between iPhone and
+laptop, runs entirely on free tiers.
 
 The budget cycle runs **the 25th to the 24th**, not the calendar month. Every
 total, reset and "this month" label follows that cycle.
@@ -19,6 +21,7 @@ hierarchy. That constraint is the design.
 | Frontend | React + TypeScript, built with Vite |
 | Styling | Tailwind v4 with a custom monochrome token set |
 | Database + auth | Supabase (free tier) |
+| Exchange rates | Frankfurter — European Central Bank data, no key, free |
 | Hosting | GitHub Pages (free tier) |
 | Phone | PWA — Add to Home Screen, no Apple Developer account needed |
 
@@ -29,18 +32,22 @@ hierarchy. That constraint is the design.
 ### 1. Supabase
 
 1. Create a project. Region: **Central EU (Frankfurt)** if you are in Istanbul.
-2. **SQL Editor → New query**, paste all of [`supabase/migrations/001_initial.sql`](supabase/migrations/001_initial.sql)
-   and run it. It creates the three tables, the row-level security policies and
-   the `ensure_cycle` rollover function. It is safe to re-run.
+2. **SQL Editor → New query**: run the migrations in order,
+   [`001_initial.sql`](supabase/migrations/001_initial.sql) then
+   [`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql).
+   Each is a single transaction and safe to re-run. Together they create the
+   tables, the row-level security policies, the rollover function and the
+   household sharing machinery.
 3. **Authentication → URL Configuration**: set Site URL to
    `http://localhost:5173` and add `http://localhost:5173/**` under Redirect
    URLs. Add the deployed address here too once it exists.
 4. **Authentication → Users → Add user → Create new user**: enter your email
    and a password, and tick **Auto Confirm User**. This is the only account
    the app will ever have — there is no sign-up form, on purpose.
-5. **Authentication → Sign In / Providers → Email**: turn **off** "Allow new
-   users to sign up". Without this, anyone who finds the deployed URL could
-   create accounts in your project.
+5. **Authentication → Sign In / Providers → Email**: leave "Allow new users
+   to sign up" **on**. The people you live with need to be able to create
+   their own accounts. An account by itself grants nothing — see
+   [Sharing a household](#sharing-a-household).
 6. **Project Settings → API**: copy the **Project URL** and the **anon/public**
    key (newer dashboards call it the *publishable* key, `sb_publishable_…`).
    Never use the `service_role` / secret key — it bypasses row-level security.
@@ -48,7 +55,25 @@ hierarchy. That constraint is the design.
 There is nothing to do under **Authentication → Emails**. The app does not
 send any email.
 
-### 2. Local
+### 2. Upgrading a project that already has data
+
+If the project predates households and currencies, it only needs
+[`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql).
+**Take a backup first** (Database → Backups). The whole migration is one
+transaction, so a failure changes nothing, and it moves your existing data
+rather than replacing it: your profiles become household-owned, you become
+the household's owner, each cycle's income becomes the first entry in its new
+income list, and every existing item is stamped with the profile's currency.
+
+To rehearse it, change the final `commit;` to `rollback;` and run it. That
+executes every statement against your real data and then throws the result
+away. If the dry run succeeds, the real one will.
+
+Note that the deployed app will not work against the old schema once the
+migration lands, nor against the new schema before it. Migrate and deploy
+close together.
+
+### 3. Local
 
 ```bash
 npm install
@@ -63,8 +88,8 @@ variables the sign-in screen says so plainly rather than failing silently.
 
 ## Signing in
 
-Email and password. One account — the multi-profile feature lives *inside*
-that account and is not multi-user.
+Email and password. Everyone in the household has their own account; see
+[Sharing a household](#sharing-a-household).
 
 The form is marked up so **iCloud Keychain** offers to save the password the
 first time and fills it thereafter, which makes signing in two taps.
@@ -92,6 +117,71 @@ now persists indefinitely.
 There is no reset flow in the app, because there is no email sending. Set a
 new one in **Supabase → Authentication → Users → ⋯ → Reset password**, or
 delete the user and create it again.
+
+## Sharing a household
+
+A **household** owns the budgets. Any number of accounts can be members of
+one, and every member can do everything: add items, change prices, tick
+things off, edit income.
+
+People join with a **code**, not an email invite, because this project sends
+no email. The code looks like `K7M2-QX4P` and lives under **Settings → Join
+code**.
+
+1. They create an account on the sign-in screen.
+2. They choose **Join with a code** and enter it.
+3. They see the same budgets you do, immediately.
+
+**Rotate the code** from Settings when you want to stop anyone else joining.
+People who are already in stay in; the old code simply stops working.
+
+Whoever created the household is its **owner**, and that is the only
+asymmetry: owners rename the household, rotate the code and remove members.
+Everything about the money itself is equal. Any member can leave on their
+own, which removes their access and deletes nothing.
+
+### Why open sign-up is safe here
+
+Anyone who finds the URL can create an account, and that account can see
+precisely nothing. Row-level security grants access through household
+membership alone, and membership requires the code. A stranger who signs up
+lands on the "create or join a household" screen and stops there.
+
+## Currencies
+
+Each item and each income entry carries its own currency. Rent in euros,
+groceries in lira, one balance in whichever you want to read. The display
+currency is switched from the control beside **BALANCE** on the Overview, and
+the switch is instant — nothing is rewritten.
+
+### Rates are frozen by date, not stored
+
+An item records the **date** its cycle belongs to, and the conversion uses
+the European Central Bank rate for that day. ECB rates for a past date never
+change, so a closed cycle keeps the value it had at the time — permanently.
+
+This matters more than it sounds. Converting at today's rate instead would
+quietly rewrite your history: with the lira's movement against the euro, a
+cycle from a year ago re-valued today would be meaningless.
+
+Because the date does the freezing rather than a stored number, changing
+which currency you read the totals in needs no migration and no recompute.
+
+Rates come from [Frankfurter](https://frankfurter.dev) (ECB data, no API key,
+free) and are cached in the `fx_rates` table — fetched once, then shared by
+every member and every device. If a day cannot be fetched, the app falls back
+to the most recent rate it has and labels the balance *approx* rather than
+showing a confident wrong number.
+
+Two things to know: the ECB publishes once per working day, so weekends carry
+Friday's figures; and these are reference rates, so your bank's rate will
+differ by a percent or two.
+
+### Rollover and currencies
+
+When a new cycle rolls over, each copied item keeps its currency but is
+re-dated to the new cycle. Next month's rent converts at next month's rate,
+which is what you actually pay.
 
 ## On the phone
 
@@ -221,17 +311,31 @@ app has a single route, so it never needs an SPA fallback.
 
 ## Is the anon key safe in the browser?
 
-Yes — but only because row-level security is enabled on all three tables. The
-key identifies the project, not you; the policies in `supabase/migrations/001_initial.sql`
-restrict every row to `auth.uid()`. To confirm it works, sign out and try to
-read `profiles` with the anon key: zero rows come back.
+Yes — but only because row-level security is enabled on every table. The key
+identifies the project, not you; the policies grant access through household
+membership alone. To confirm, query any table with the anon key while signed
+out and you get zero rows, and an insert is refused with error 42501.
+
+This is exercised automatically. `supabase/migration.test.ts` stands up a
+real Postgres, puts two households' worth of data in it, and asserts that a
+stranger sees nothing and cannot write anything.
 
 ---
 
 ## How the data model works
 
-Three tables: `profiles`, `cycles`, `items`. A cycle belongs to a profile and
-is identified by its start date, always an anchor day. Items belong to a cycle.
+`households` own `profiles` (Ev, İşyeri), profiles own `cycles`, and a cycle
+owns its `items` and `incomes`. `household_members` maps accounts to
+households; `household_invites` holds the join code; `fx_rates` caches
+exchange rates. A cycle is identified by its start date, always an anchor day.
+
+Income is a list rather than a single number, so it can arrive in more than
+one currency.
+
+Access is decided by household membership. The check lives in a
+`security definer` function on purpose: a policy on `household_members` that
+queries `household_members` raises Postgres error 42P17, infinite recursion,
+and that function is what breaks the loop.
 
 **Rollover is lazy — there is no cron job.** On every app load and every profile
 switch, the app asks the database for the cycle containing today. If it does

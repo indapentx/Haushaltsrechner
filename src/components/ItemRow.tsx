@@ -9,17 +9,22 @@ import { formatAmount } from '../lib/money';
  */
 export function ItemRow({
   item,
-  currency,
+  displayCurrency,
+  converted,
   onToggle,
   onOpenActions,
   rowRef,
 }: {
   item: Item;
-  currency: string;
+  /** What the totals are shown in; an item in this needs no annotation. */
+  displayCurrency: string;
+  /** The item's worth in the display currency, or null if no rate is known. */
+  converted: number | null;
   onToggle: () => void;
   onOpenActions: () => void;
   rowRef: (el: HTMLElement | null) => void;
 }) {
+  const foreign = item.currency !== displayCurrency;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const [pressed, setPressed] = useState(false);
@@ -71,12 +76,22 @@ export function ItemRow({
         >
           {item.name}
         </span>
-        <span
-          className={`font-mono tnum text-[16px] ${
-            item.is_paid ? 'text-text-muted line-through' : 'text-text'
-          }`}
-        >
-          {formatAmount(item.amount, currency)}
+        <span className="flex flex-col items-end">
+          <span
+            className={`font-mono tnum text-[16px] ${
+              item.is_paid ? 'text-text-muted line-through' : 'text-text'
+            }`}
+          >
+            {formatAmount(item.amount, item.currency)}
+            {foreign && <span className="micro ml-1.5 text-text-muted">{item.currency}</span>}
+          </span>
+          {/* What a foreign amount is worth in the currency being displayed,
+              at this cycle's rate. */}
+          {foreign && (
+            <span className="micro mt-0.5 text-text-muted">
+              {converted === null ? 'no rate' : `≈ ${formatAmount(converted, displayCurrency)}`}
+            </span>
+          )}
         </span>
       </button>
 

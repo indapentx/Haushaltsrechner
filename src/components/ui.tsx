@@ -40,7 +40,7 @@ export function TextInput({
 }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`min-h-11 w-full bg-surface-raised px-3 text-text placeholder:text-text-muted ${className}`}
+      className={`min-h-11 w-full bg-surface-raised px-3 text-text placeholder:text-text-muted disabled:text-text-muted ${className}`}
       {...props}
     />
   );
@@ -92,7 +92,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full sm:max-w-sm border-t sm:border border-rule bg-surface pb-[env(safe-area-inset-bottom)]"
+        className="max-h-[88dvh] w-full overflow-y-auto overscroll-contain border-t border-rule bg-surface pb-[env(safe-area-inset-bottom)] sm:max-w-sm sm:border"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-4">
@@ -157,5 +157,38 @@ export function Confirm({
         </Button>
       </div>
     </Modal>
+  );
+}
+
+/** Currency chips. The active one is filled, like the profile pills. */
+export function CurrencyChips({
+  value,
+  onChange,
+  options,
+  className = '',
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  options: readonly string[];
+  className?: string;
+}) {
+  return (
+    <div className={`flex gap-2 ${className}`}>
+      {options.map((code) => (
+        <button
+          key={code}
+          type="button"
+          onClick={() => onChange(code)}
+          aria-pressed={value === code}
+          className={`min-h-11 flex-1 font-mono text-[13px] ${
+            value === code
+              ? 'bg-white text-black'
+              : 'border border-rule text-text-secondary active:bg-surface-raised'
+          }`}
+        >
+          {code}
+        </button>
+      ))}
+    </div>
   );
 }

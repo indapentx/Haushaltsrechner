@@ -1,18 +1,39 @@
 import { useMemo, useState } from 'react';
 import { ItemRow } from '../components/ItemRow';
 import { useFlipList } from '../components/useFlipList';
-import { Button, Confirm, Micro, Modal, Rule, TextInput } from '../components/ui';
+import {
+  Button,
+  Confirm,
+  CurrencyChips,
+  Micro,
+  Modal,
+  Rule,
+  TextInput,
+} from '../components/ui';
 import type { Item } from '../lib/db';
-import { formatAmount, parseAmount, toEditableString } from '../lib/money';
+import { CURRENCIES, formatAmount, parseAmount, toEditableString } from '../lib/money';
 import { checklistOrder } from '../lib/sorting';
 import { useBudget } from '../state/store';
 
 export default function Checklist() {
-  const { items, currency, totals, toggleItem, addItem, editItem, removeItem, resetAll } =
-    useBudget();
+  const {
+    items,
+    currency,
+    totals,
+    activeProfile,
+    inDisplay,
+    toggleItem,
+    addItem,
+    editItem,
+    removeItem,
+    resetAll,
+  } = useBudget();
 
+  const ownCurrency = activeProfile?.currency ?? 'TRY';
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
+  const [newCurrency, setNewCurrency] = useState(ownCurrency);
+  const [editCurrency, setEditCurrency] = useState(ownCurrency);
   const [acting, setActing] = useState<Item | null>(null);
   const [editing, setEditing] = useState<Item | null>(null);
   const [editName, setEditName] = useState('');
@@ -27,16 +48,18 @@ export default function Checklist() {
     const trimmed = name.trim();
     const parsed = parseAmount(amount);
     if (!trimmed) return;
-    await addItem(trimmed, parsed ?? 0);
+    await addItem(trimmed, parsed ?? 0, newCurrency);
     setName('');
     setAmount('');
+    setNewCurrency(ownCurrency);
   }
 
   function openEdit(item: Item) {
     setActing(null);
     setEditing(item);
     setEditName(item.name);
-    setEditAmount(toEditableString(item.amount, currency));
+    setEditAmount(toEditableString(item.amount, item.currency));
+    setEditCurrency(item.currency);
   }
 
   async function saveEdit() {
@@ -46,6 +69,7 @@ export default function Checklist() {
     await editItem(editing.id, {
       ...(trimmed ? { name: trimmed } : {}),
       ...(parsed !== null ? { amount: parsed } : {}),
+      currency: editCurrency,
     });
     setEditing(null);
   }
@@ -70,7 +94,8 @@ export default function Checklist() {
             <ItemRow
               key={item.id}
               item={item}
-              currency={currency}
+              displayCurrency={currency}
+              converted={inDisplay(item)}
               rowRef={registerRow(item.id)}
               onToggle={() => void toggleItem(item.id)}
               onOpenActions={() => setActing(item)}
@@ -112,6 +137,12 @@ export default function Checklist() {
             Add
           </Button>
         </div>
+        <CurrencyChips
+          className="mt-2"
+          value={newCurrency}
+          options={CURRENCIES}
+          onChange={setNewCurrency}
+        />
       </div>
 
       <div className="mt-10 px-5">
@@ -167,6 +198,15 @@ export default function Checklist() {
             }}
           />
         </label>
+        <div className="mt-4">
+          <Micro>Currency</Micro>
+          <CurrencyChips
+            className="mt-2"
+            value={editCurrency}
+            options={CURRENCIES}
+            onChange={setEditCurrency}
+          />
+        </div>
         <div className="mt-6 flex gap-3">
           <Button variant="quiet" className="flex-1" onClick={() => setEditing(null)}>
             Cancel

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatAmount, formatMoney } from '../lib/money';
 import { Rule } from './ui';
 
@@ -16,22 +16,19 @@ export function BalanceBlock({
   committed,
   stillToPay,
   currency,
-  editingIncome,
-  incomeDraft,
-  onIncomeDraft,
-  onIncomeCommit,
+  approximate,
   onEditIncome,
+  onChangeCurrency,
 }: {
   balance: number;
   income: number;
   committed: number;
   stillToPay: number;
   currency: string;
-  editingIncome: boolean;
-  incomeDraft: string;
-  onIncomeDraft: (v: string) => void;
-  onIncomeCommit: () => void;
+  /** A figure in here relied on an older day's exchange rate. */
+  approximate?: boolean;
   onEditIncome: () => void;
+  onChangeCurrency: () => void;
 }) {
   const negative = balance < 0;
   const [flash, setFlash] = useState(0);
@@ -53,11 +50,20 @@ export function BalanceBlock({
     >
       <div className={negative ? 'h-px bg-black' : 'h-px bg-rule'} />
       <div className="px-5 pt-5 pb-6">
-        <span
-          className={`micro ${negative ? 'text-black' : 'text-text-secondary'}`}
-        >
-          Balance
-        </span>
+        <div className="flex items-baseline justify-between">
+          <span className={`micro ${negative ? 'text-black' : 'text-text-secondary'}`}>
+            Balance{approximate ? ' · approx' : ''}
+          </span>
+          {/* Which currency every figure on this screen is expressed in. */}
+          <button
+            type="button"
+            onClick={onChangeCurrency}
+            aria-label={`Showing ${currency}. Tap to change.`}
+            className={`micro ${negative ? 'text-black' : 'text-text-secondary'} active:opacity-60`}
+          >
+            {currency}
+          </button>
+        </div>
         <div
           key={flash}
           className="balance-fade mt-2 font-mono tnum leading-none"
@@ -79,25 +85,6 @@ export function BalanceBlock({
           value={formatAmount(income, currency)}
           negative={negative}
           onClick={onEditIncome}
-          editor={
-            editingIncome ? (
-              <input
-                autoFocus
-                inputMode="decimal"
-                enterKeyHint="done"
-                className={`block w-full font-mono tnum text-[18px] outline-none ${
-                  negative ? 'text-black' : 'text-text'
-                }`}
-                value={incomeDraft}
-                onChange={(e) => onIncomeDraft(e.target.value)}
-                onBlur={onIncomeCommit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur();
-                }}
-                aria-label="Income"
-              />
-            ) : null
-          }
         />
         <Figure
           label="Committed"
@@ -124,21 +111,19 @@ function Figure({
   negative,
   divided,
   onClick,
-  editor,
 }: {
   label: string;
   value: string;
   negative: boolean;
   divided?: boolean;
   onClick?: () => void;
-  editor?: ReactNode;
 }) {
   const body = (
     <div className="flex h-full flex-col justify-between gap-1.5">
       <span className={`micro block ${negative ? 'text-black' : 'text-text-secondary'}`}>
         {label}
       </span>
-      {editor ?? <span className="block font-mono tnum text-[18px]">{value}</span>}
+      <span className="block font-mono tnum text-[18px]">{value}</span>
     </div>
   );
 
@@ -147,10 +132,6 @@ function Figure({
       ? 'border-l border-black'
       : 'border-l border-rule'
     : '';
-
-  if (editor) {
-    return <div className={`px-3 py-4 ${divider}`}>{body}</div>;
-  }
 
   if (onClick) {
     return (
