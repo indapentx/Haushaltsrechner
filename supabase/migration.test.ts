@@ -19,6 +19,10 @@ const MIGRATION = readFileSync(
   join(ROOT, 'supabase/migrations/002_households_and_currencies.sql'),
   'utf8',
 );
+const SHARING = readFileSync(
+  join(ROOT, 'supabase/migrations/003_share_single_budget.sql'),
+  'utf8',
+);
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const HOUSEMATE = '22222222-2222-2222-2222-222222222222';
@@ -327,5 +331,112 @@ describe('migration 002', () => {
     );
     // Re-running must not mint a second household for the same data.
     expect(rows[0].n).toBe(1);
+  }, 60_000);
+});
+
+/**
+ * 003 moves sharing from the whole household down to one budget at a time.
+ * The thing that must be true: a guest let into one budget sees that budget
+ * and nothing else.
+ */
+describe('migration 003 — sharing one budget', () => {
+  let db: PGlite;
+  let evId: string;
+  let privateId: string;
+
+  beforeAll(async () => {
+    db = await freshDatabase();
+    await db.exec(MIGRATION);
+    await db.exec(SHARING);
+    await db.exec(`grant all on all tables in schema public to authenticated;`);
+
+    const { rows } = await db.query<{ id: string; name: string }>(
+      'select id, name from profiles order by sort_order',
+    );
+    evId = rows[0].id; // Ev — the one to share
+    privateId = rows[1].id; // İşyeri — must stay private
+  }, 60_000);
+
+  it('revokes the household-wide code, so nobody can take everything', async () => {
+    const { rows } = await db.query('select code from household_invites');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('shows the owner all their budgets', async () => {
+    const rows = await asUser(db, OWNER, 'select name from profiles order by sort_order');
+    expect(rows.map((r: { name: string }) => r.name)).toEqual(['Ev', 'İşyeri']);
+  });
+
+  it('lets the owner share exactly one', async () => {
+    const rows = await asUser<{ share_profile: string }>(
+      db,
+      OWNER,
+      `select share_profile('${evId}')`,
+    );
+    expect(rows[0].share_profile).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
+  });
+
+  it('refuses to let a stranger share someone else’s budget', async () => {
+    await expect(
+      asUser(db, STRANGER, `select share_profile('${privateId}')`),
+    ).rejects.toThrow(/owner/);
+  });
+
+  it('lets a guest in with the code — and ONLY to that budget', async () => {
+    const { rows } = await db.query<{ code: string }>(
+      `select code from profile_invites where profile_id = '${evId}'`,
+    );
+    await asUser(db, HOUSEMATE, `select * from join_profile('${rows[0].code}')`);
+
+    const visible = await asUser(db, HOUSEMATE, 'select name from profiles');
+    // This is the whole point of the migration.
+    expect(visible.map((r: { name: string }) => r.name)).toEqual(['Ev']);
+  });
+
+  it('keeps the private budget’s money out of reach too', async () => {
+    const cycles = await asUser(
+      db,
+      HOUSEMATE,
+      `select * from cycles where profile_id = '${privateId}'`,
+    );
+    expect(cycles).toHaveLength(0);
+
+    const items = await asUser(
+      db,
+      HOUSEMATE,
+      `select i.* from items i join cycles c on c.id = i.cycle_id
+        where c.profile_id = '${privateId}'`,
+    );
+    expect(items).toHaveLength(0);
+  });
+
+  it('lets the guest edit the budget they were given', async () => {
+    const { rows } = await db.query<{ id: string }>(
+      `select id from cycles where profile_id = '${evId}' order by start_date desc limit 1`,
+    );
+    await asUser(
+      db,
+      HOUSEMATE,
+      `insert into items (cycle_id, name, amount, currency, rate_date, sort_order)
+       values ('${rows[0].id}', 'Guest item', 50, 'TRY', '2026-08-25', 9)`,
+    );
+    const seen = await asUser(db, OWNER, `select name from items where name = 'Guest item'`);
+    expect(seen).toHaveLength(1);
+  });
+
+  it('does not let the guest rename or delete the budget', async () => {
+    await asUser(db, HOUSEMATE, `update profiles set name = 'Hijacked' where id = '${evId}'`);
+    const rows = await asUser(db, OWNER, `select name from profiles where id = '${evId}'`);
+    // The update matches no rows under the guest's policy rather than erroring.
+    expect((rows[0] as { name: string }).name).toBe('Ev');
+  });
+
+  it('removes the guest again when sharing is switched off', async () => {
+    await asUser(db, OWNER, `select unshare_profile('${evId}')`);
+    expect(await asUser(db, HOUSEMATE, 'select name from profiles')).toHaveLength(0);
+  });
+
+  it('can be run twice', async () => {
+    await expect(db.exec(SHARING)).resolves.toBeDefined();
   }, 60_000);
 });
