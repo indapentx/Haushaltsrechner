@@ -29,7 +29,7 @@ hierarchy. That constraint is the design.
 ### 1. Supabase
 
 1. Create a project. Region: **Central EU (Frankfurt)** if you are in Istanbul.
-2. **SQL Editor → New query**, paste all of [`supabase/schema.sql`](supabase/schema.sql)
+2. **SQL Editor → New query**, paste all of [`supabase/migrations/001_initial.sql`](supabase/migrations/001_initial.sql)
    and run it. It creates the three tables, the row-level security policies and
    the `ensure_cycle` rollover function. It is safe to re-run.
 3. **Authentication → URL Configuration**: set Site URL to
@@ -222,7 +222,7 @@ app has a single route, so it never needs an SPA fallback.
 ## Is the anon key safe in the browser?
 
 Yes — but only because row-level security is enabled on all three tables. The
-key identifies the project, not you; the policies in `supabase/schema.sql`
+key identifies the project, not you; the policies in `supabase/migrations/001_initial.sql`
 restrict every row to `auth.uid()`. To confirm it works, sign out and try to
 read `profiles` with the anon key: zero rows come back.
 

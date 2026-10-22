@@ -57,6 +57,6 @@ export default defineConfig(({ command, isPreview }) => ({
   ],
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'supabase/**/*.test.ts'],
   },
 }));

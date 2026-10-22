@@ -1,5 +1,7 @@
--- Budget app schema. Paste this whole file into the Supabase SQL editor
--- and run it once. Safe to re-run.
+-- Migration 001 — the original schema: one owner, one currency.
+--
+-- A fresh Supabase project runs this first, then 002. An existing project
+-- has already got this and only needs 002.
 
 -- ---------------------------------------------------------------- tables
 
