@@ -96,11 +96,6 @@ export async function createHousehold(name: string): Promise<Household> {
   return data;
 }
 
-export async function joinHousehold(code: string): Promise<Household> {
-  const { data } = await supabase.rpc('join_household', { p_code: code }).throwOnError();
-  return data;
-}
-
 export async function renameHousehold(id: string, name: string): Promise<void> {
   await supabase.from('households').update({ name }).eq('id', id).throwOnError();
 }

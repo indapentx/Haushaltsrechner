@@ -195,14 +195,6 @@ export type Database = {
         Args: { p_name: string };
         Returns: HouseholdRow;
       };
-      join_household: {
-        Args: { p_code: string };
-        Returns: HouseholdRow;
-      };
-      rotate_join_code: {
-        Args: { p_household: string };
-        Returns: string;
-      };
       share_profile: {
         Args: { p_profile: string };
         Returns: string;

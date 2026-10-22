@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Confirm, CurrencyChips, Micro, Rule, TextInput } from '../components/ui';
+import {
+  Button,
+  Confirm,
+  CopyButton,
+  CurrencyChips,
+  Micro,
+  Rule,
+  TextInput,
+} from '../components/ui';
 import * as db from '../lib/db';
 import type { ProfileMember } from '../lib/db';
 import { CURRENCIES } from '../lib/money';
@@ -143,13 +151,18 @@ export default function Settings() {
               Anyone with this code can open “{activeProfile.name}” and change
               anything in it. They see none of your other budgets.
             </p>
-            <div className="mt-3 flex items-center gap-3">
-              <div className="flex-1 border border-rule px-3 py-3 text-center font-mono tnum text-[18px] tracking-[0.2em]">
-                {showCode ? code : '••••-••••'}
-              </div>
-              <Button variant="outline" onClick={() => setShowCode((v) => !v)}>
+            <div className="mt-3 border border-rule px-3 py-3 text-center font-mono tnum text-[18px] tracking-[0.2em]">
+              {showCode ? code : '••••-••••'}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowCode((v) => !v)}
+              >
                 {showCode ? 'Hide' : 'Show'}
               </Button>
+              <CopyButton className="flex-1" value={code} />
             </div>
             <Button
               variant="outline"

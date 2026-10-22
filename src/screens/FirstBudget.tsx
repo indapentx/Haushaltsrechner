@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { Button, CurrencyChips, Micro, Rule, TextInput } from '../components/ui';
+import {
+  Button,
+  CurrencyChips,
+  Micro,
+  PasteButton,
+  Rule,
+  TextInput,
+} from '../components/ui';
+import { isCompleteJoinCode, normalizeJoinCode } from '../lib/code';
 import { CURRENCIES } from '../lib/money';
 import { useBudget } from '../state/store';
 
@@ -30,7 +38,7 @@ export default function FirstBudget() {
     setBusy(true);
     setMessage(null);
     try {
-      await joinProfile(code.trim().toUpperCase());
+      await joinProfile(normalizeJoinCode(code));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     }
@@ -100,22 +108,25 @@ export default function FirstBudget() {
               Ask whoever owns the budget for its code. They will find it under
               Settings. It lets you into that one budget and nothing else.
             </p>
-            <TextInput
-              className="mt-4 font-mono tnum text-[18px] uppercase tracking-[0.2em]"
-              value={code}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              maxLength={9}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="XXXX-XXXX"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void join();
-              }}
-            />
+            <div className="mt-4 flex gap-2">
+              <TextInput
+                className="min-w-0 flex-1 basis-0 font-mono tnum text-[18px] uppercase tracking-[0.2em]"
+                value={code}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                maxLength={9}
+                onChange={(e) => setCode(normalizeJoinCode(e.target.value))}
+                placeholder="XXXX-XXXX"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void join();
+                }}
+              />
+              <PasteButton onPaste={(text) => setCode(normalizeJoinCode(text))} />
+            </div>
             <Button
               variant="solid"
               className="mt-4 w-full"
-              disabled={busy || code.trim().length < 8}
+              disabled={busy || !isCompleteJoinCode(code)}
               onClick={join}
             >
               {busy ? 'Joining' : 'Join'}

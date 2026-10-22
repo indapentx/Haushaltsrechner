@@ -1,6 +1,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -190,5 +191,77 @@ export function CurrencyChips({
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Copy to the clipboard, with the result shown in the button itself.
+ * The clipboard needs a secure context, which https and localhost both are;
+ * if it is refused anyway, say so rather than appearing to have worked.
+ */
+export function CopyButton({
+  value,
+  className = '',
+}: {
+  value: string;
+  className?: string;
+}) {
+  const [state, setState] = useState<'idle' | 'done' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (state === 'idle') return;
+    const timer = setTimeout(() => setState('idle'), 1600);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  return (
+    <Button
+      variant="outline"
+      className={className}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setState('done');
+        } catch {
+          setState('failed');
+        }
+      }}
+    >
+      {state === 'done' ? 'Copied' : state === 'failed' ? 'Failed' : 'Copy'}
+    </Button>
+  );
+}
+
+/** Read the clipboard and hand it to the caller. */
+export function PasteButton({
+  onPaste,
+  className = '',
+}: {
+  onPaste: (text: string) => void;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!failed) return;
+    const timer = setTimeout(() => setFailed(false), 1600);
+    return () => clearTimeout(timer);
+  }, [failed]);
+
+  return (
+    <Button
+      variant="outline"
+      className={className}
+      onClick={async () => {
+        try {
+          onPaste(await navigator.clipboard.readText());
+        } catch {
+          // iOS asks permission; a refusal lands here. Typing still works.
+          setFailed(true);
+        }
+      }}
+    >
+      {failed ? 'Blocked' : 'Paste'}
+    </Button>
   );
 }

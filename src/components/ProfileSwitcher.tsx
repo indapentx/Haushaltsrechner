@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useBudget } from '../state/store';
 import { CURRENCIES } from '../lib/money';
-import { Button, CurrencyChips, Micro, Modal, TextInput } from './ui';
+import { isCompleteJoinCode, normalizeJoinCode } from '../lib/code';
+import { Button, CurrencyChips, Micro, Modal, PasteButton, TextInput } from './ui';
 
 /** Active profile is a filled pill; the rest are outlined. No hue involved. */
 export function ProfileSwitcher() {
@@ -32,7 +33,7 @@ export function ProfileSwitcher() {
   async function submitJoin() {
     setMessage(null);
     try {
-      await joinProfile(code.trim().toUpperCase());
+      await joinProfile(normalizeJoinCode(code));
       close();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
@@ -95,18 +96,21 @@ export function ProfileSwitcher() {
         {mode === 'join' ? (
           <>
             <Micro>Join code</Micro>
-            <TextInput
-              className="mt-2 font-mono tnum text-[18px] uppercase tracking-[0.2em]"
-              value={code}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              maxLength={9}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="XXXX-XXXX"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void submitJoin();
-              }}
-            />
+            <div className="mt-2 flex gap-2">
+              <TextInput
+                className="min-w-0 flex-1 basis-0 font-mono tnum text-[18px] uppercase tracking-[0.2em]"
+                value={code}
+                autoCapitalize="characters"
+                autoCorrect="off"
+                maxLength={9}
+                onChange={(e) => setCode(normalizeJoinCode(e.target.value))}
+                placeholder="XXXX-XXXX"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitJoin();
+                }}
+              />
+              <PasteButton onPaste={(text) => setCode(normalizeJoinCode(text))} />
+            </div>
             <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
               Opens the one budget the code belongs to, and nothing else.
             </p>
@@ -122,7 +126,7 @@ export function ProfileSwitcher() {
               <Button
                 variant="solid"
                 className="flex-1"
-                disabled={code.trim().length < 8}
+                disabled={!isCompleteJoinCode(code)}
                 onClick={submitJoin}
               >
                 Join

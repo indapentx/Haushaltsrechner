@@ -23,6 +23,10 @@ const SHARING = readFileSync(
   join(ROOT, 'supabase/migrations/003_share_single_budget.sql'),
   'utf8',
 );
+const CLOSE_HOUSEHOLD = readFileSync(
+  join(ROOT, 'supabase/migrations/004_close_household_joining.sql'),
+  'utf8',
+);
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const HOUSEMATE = '22222222-2222-2222-2222-222222222222';
@@ -438,5 +442,55 @@ describe('migration 003 — sharing one budget', () => {
 
   it('can be run twice', async () => {
     await expect(db.exec(SHARING)).resolves.toBeDefined();
+  }, 60_000);
+});
+
+/**
+ * 003 deleted the household-wide codes but left the functions that mint
+ * them. A cached copy of the old app could call rotate_join_code() and hand
+ * someone access to every budget at once. 004 removes the machinery.
+ */
+describe('migration 004 — household joining is gone', () => {
+  let db: PGlite;
+
+  beforeAll(async () => {
+    db = await freshDatabase();
+    await db.exec(MIGRATION);
+    await db.exec(SHARING);
+    await db.exec(CLOSE_HOUSEHOLD);
+    await db.exec(`grant all on all tables in schema public to authenticated;`);
+  }, 60_000);
+
+  it('removes the functions a stale client would call', async () => {
+    const { rows } = await db.query<{ proname: string }>(
+      `select proname from pg_proc
+        where proname in ('join_household', 'rotate_join_code')`,
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it('leaves no household code behind', async () => {
+    const { rows } = await db.query('select * from household_invites');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('keeps per-budget sharing working', async () => {
+    const { rows } = await db.query<{ id: string }>(
+      'select id from profiles order by sort_order limit 1',
+    );
+    const code = await asUser<{ share_profile: string }>(
+      db,
+      OWNER,
+      `select share_profile('${rows[0].id}')`,
+    );
+    expect(code[0].share_profile).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
+
+    await asUser(db, HOUSEMATE, `select * from join_profile('${code[0].share_profile}')`);
+    const seen = await asUser(db, HOUSEMATE, 'select name from profiles');
+    expect(seen.map((r: { name: string }) => r.name)).toEqual(['Ev']);
+  });
+
+  it('can be run twice', async () => {
+    await expect(db.exec(CLOSE_HOUSEHOLD)).resolves.toBeDefined();
   }, 60_000);
 });
