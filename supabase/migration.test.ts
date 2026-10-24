@@ -27,6 +27,7 @@ const CLOSE_HOUSEHOLD = readFileSync(
   join(ROOT, 'supabase/migrations/004_close_household_joining.sql'),
   'utf8',
 );
+const GROCERIES = readFileSync(join(ROOT, 'supabase/migrations/005_groceries.sql'), 'utf8');
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const HOUSEMATE = '22222222-2222-2222-2222-222222222222';
@@ -492,5 +493,94 @@ describe('migration 004 — household joining is gone', () => {
 
   it('can be run twice', async () => {
     await expect(db.exec(CLOSE_HOUSEHOLD)).resolves.toBeDefined();
+  }, 60_000);
+});
+
+describe('migration 005 — the shopping list', () => {
+  let db: PGlite;
+  let evId: string;
+  let cycleId: string;
+
+  beforeAll(async () => {
+    db = await freshDatabase();
+    await db.exec(MIGRATION);
+    await db.exec(SHARING);
+    await db.exec(CLOSE_HOUSEHOLD);
+    await db.exec(GROCERIES);
+    await db.exec(`grant all on all tables in schema public to authenticated;`);
+
+    const profile = await db.query<{ id: string }>(
+      'select id from profiles order by sort_order limit 1',
+    );
+    evId = profile.rows[0].id;
+    const cycle = await db.query<{ id: string }>(
+      `select id from cycles where profile_id = '${evId}' order by start_date desc limit 1`,
+    );
+    cycleId = cycle.rows[0].id;
+
+    await db.exec(`
+      insert into grocery_items (profile_id, name, store, amount, currency, is_bought, sort_order) values
+        ('${evId}', 'Domates', 'Migros',  45.50, 'TRY', true,  0),
+        ('${evId}', 'Muz',     'Amazon',  32.00, 'TRY', true,  1),
+        ('${evId}', 'Makarna', 'Migros',  18.25, 'TRY', true,  2),
+        ('${evId}', 'Kahve',   'Amazon',  12.00, 'EUR', true,  3),
+        ('${evId}', 'Peynir',  'Migros',  60.00, 'TRY', false, 4);
+    `);
+  }, 60_000);
+
+  it('keeps the list private to people who can see the budget', async () => {
+    expect(await asUser(db, STRANGER, 'select * from grocery_items')).toHaveLength(0);
+    expect(await asUser(db, OWNER, 'select * from grocery_items')).toHaveLength(5);
+  });
+
+  it('turns what was bought into one budget item per currency', async () => {
+    const created = await asUser<{ name: string; amount: string; currency: string }>(
+      db,
+      OWNER,
+      `select name, amount, currency from checkout_groceries('${evId}', '${cycleId}', 'Groceries')`,
+    );
+    expect(created).toHaveLength(2);
+    const byCurrency = Object.fromEntries(created.map((r) => [r.currency, Number(r.amount)]));
+    // 45.50 + 32.00 + 18.25 — the unticked cheese is not in it.
+    expect(byCurrency.TRY).toBe(95.75);
+    expect(byCurrency.EUR).toBe(12);
+    expect(created.every((r) => r.name === 'Groceries')).toBe(true);
+  });
+
+  it('clears what was bought and leaves what was not', async () => {
+    const left = await asUser<{ name: string }>(db, OWNER, 'select name from grocery_items');
+    expect(left.map((r) => r.name)).toEqual(['Peynir']);
+  });
+
+  it('dates the new items to the cycle, so they convert like everything else', async () => {
+    const rows = await asUser<{ rate_date: string; start_date: string }>(
+      db,
+      OWNER,
+      `select i.rate_date::text, c.start_date::text from items i
+         join cycles c on c.id = i.cycle_id
+        where i.name = 'Groceries' limit 1`,
+    );
+    expect(rows[0].rate_date).toBe(rows[0].start_date);
+  });
+
+  it('does not let a stranger check out someone else’s list', async () => {
+    await expect(
+      asUser(db, STRANGER, `select * from checkout_groceries('${evId}', '${cycleId}', 'x')`),
+    ).rejects.toThrow(/not yours/);
+  });
+
+  it('is a no-op when nothing has been ticked', async () => {
+    const created = await asUser(
+      db,
+      OWNER,
+      `select * from checkout_groceries('${evId}', '${cycleId}', 'Groceries')`,
+    );
+    expect(created).toHaveLength(0);
+    // The unbought cheese is still there.
+    expect(await asUser(db, OWNER, 'select * from grocery_items')).toHaveLength(1);
+  });
+
+  it('can be run twice', async () => {
+    await expect(db.exec(GROCERIES)).resolves.toBeDefined();
   }, 60_000);
 });

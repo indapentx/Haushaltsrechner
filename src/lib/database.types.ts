@@ -90,6 +90,20 @@ type IncomeRow = {
   created_at: string;
 };
 
+type GroceryItemRow = {
+  id: string;
+  profile_id: string;
+  name: string;
+  store: string | null;
+  amount: number;
+  currency: string;
+  rate_date: string;
+  is_bought: boolean;
+  bought_at: string | null;
+  sort_order: number;
+  created_at: string;
+};
+
 type FxRateRow = {
   as_of: string;
   base: string;
@@ -178,6 +192,22 @@ export type Database = {
         Update: Partial<IncomeRow>;
         Relationships: [];
       };
+      grocery_items: {
+        Row: GroceryItemRow;
+        Insert: Defaulted<
+          GroceryItemRow,
+          | 'id'
+          | 'created_at'
+          | 'store'
+          | 'amount'
+          | 'rate_date'
+          | 'is_bought'
+          | 'bought_at'
+          | 'sort_order'
+        >;
+        Update: Partial<GroceryItemRow>;
+        Relationships: [];
+      };
       fx_rates: {
         Row: FxRateRow;
         Insert: Defaulted<FxRateRow, 'fetched_at'>;
@@ -194,6 +224,10 @@ export type Database = {
       create_household: {
         Args: { p_name: string };
         Returns: HouseholdRow;
+      };
+      checkout_groceries: {
+        Args: { p_profile: string; p_cycle: string; p_label: string };
+        Returns: ItemRow[];
       };
       share_profile: {
         Args: { p_profile: string };

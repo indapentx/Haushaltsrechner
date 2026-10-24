@@ -1,6 +1,6 @@
 import { Rule } from './ui';
 
-export const TABS = ['Overview', 'Checklist', 'Settings'] as const;
+export const TABS = ['Overview', 'Checklist', 'Shopping', 'Settings'] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -18,7 +18,7 @@ export function TabBar({
     <nav className="fixed inset-x-0 bottom-0 z-40 bg-ink">
       <div className="mx-auto w-full max-w-md">
         <Rule />
-        <div className="grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
           {TABS.map((tab) => {
             const selected = tab === active;
             return (

@@ -307,6 +307,103 @@ export async function resetCycleItems(cycleId: string): Promise<void> {
     .eq('cycle_id', cycleId).throwOnError();
 }
 
+// ------------------------------------------------------------- groceries
+
+export interface GroceryItem {
+  id: string;
+  profile_id: string;
+  name: string;
+  store: string | null;
+  amount: number;
+  currency: string;
+  rate_date: string;
+  is_bought: boolean;
+  bought_at: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+function asGrocery(row: GroceryItem): GroceryItem {
+  return { ...row, amount: toAmount(row.amount) };
+}
+
+export async function listGroceries(profileId: string): Promise<GroceryItem[]> {
+  const { data } = await supabase
+    .from('grocery_items')
+    .select('*')
+    .eq('profile_id', profileId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+    .throwOnError();
+  return data.map(asGrocery);
+}
+
+export async function createGrocery(
+  profileId: string,
+  name: string,
+  store: string | null,
+  amount: number,
+  currency: string,
+  rateDate: string,
+  sortOrder: number,
+): Promise<GroceryItem> {
+  const { data } = await supabase
+    .from('grocery_items')
+    .insert({
+      profile_id: profileId,
+      name,
+      store,
+      amount,
+      currency,
+      rate_date: rateDate,
+      sort_order: sortOrder,
+    })
+    .select()
+    .single()
+    .throwOnError();
+  return asGrocery(data);
+}
+
+export async function updateGrocery(
+  id: string,
+  patch: Partial<
+    Pick<GroceryItem, 'name' | 'store' | 'amount' | 'currency' | 'is_bought' | 'bought_at'>
+  >,
+): Promise<void> {
+  await supabase.from('grocery_items').update(patch).eq('id', id).throwOnError();
+}
+
+export async function deleteGrocery(id: string): Promise<void> {
+  await supabase.from('grocery_items').delete().eq('id', id).throwOnError();
+}
+
+export async function clearGroceries(profileId: string): Promise<void> {
+  await supabase
+    .from('grocery_items')
+    .delete()
+    .eq('profile_id', profileId)
+    .throwOnError();
+}
+
+/**
+ * Turn what was bought into budget items and clear it from the list.
+ * One item per currency; anything still unticked stays put.
+ */
+export async function checkoutGroceries(
+  profileId: string,
+  cycleId: string,
+  label: string,
+): Promise<Item[]> {
+  const { data } = await supabase
+    .rpc('checkout_groceries', {
+      p_profile: profileId,
+      p_cycle: cycleId,
+      p_label: label,
+    })
+    .throwOnError();
+  return data.map(asItem);
+}
+
 // --------------------------------------------------------------- incomes
 
 export async function listIncomes(cycleId: string): Promise<Income[]> {

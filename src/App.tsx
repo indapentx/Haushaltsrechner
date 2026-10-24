@@ -5,6 +5,7 @@ import Checklist from './screens/Checklist';
 import Overview from './screens/Overview';
 import Settings from './screens/Settings';
 import FirstBudget from './screens/FirstBudget';
+import Groceries from './screens/Groceries';
 import SignIn from './screens/SignIn';
 import { BudgetProvider, useBudget } from './state/store';
 import { useAuth } from './state/useAuth';
@@ -34,6 +35,7 @@ function Main() {
       <main className="mx-auto w-full max-w-md pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:border-x sm:border-rule sm:min-h-dvh">
         {tab === 'Overview' && <Overview />}
         {tab === 'Checklist' && <Checklist />}
+        {tab === 'Shopping' && <Groceries />}
         {tab === 'Settings' && <Settings />}
       </main>
 

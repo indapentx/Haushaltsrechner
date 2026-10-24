@@ -35,7 +35,9 @@ hierarchy. That constraint is the design.
 2. **SQL Editor → New query**: run the migrations in order,
    [`001_initial.sql`](supabase/migrations/001_initial.sql),
    [`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql),
-   then [`003_share_single_budget.sql`](supabase/migrations/003_share_single_budget.sql).
+   [`003_share_single_budget.sql`](supabase/migrations/003_share_single_budget.sql),
+   [`004_close_household_joining.sql`](supabase/migrations/004_close_household_joining.sql),
+   then [`005_groceries.sql`](supabase/migrations/005_groceries.sql).
    Each is a single transaction and safe to re-run. Together they create the
    tables, the row-level security policies, the rollover function and the
    household sharing machinery.
@@ -154,6 +156,26 @@ all-or-nothing; migration 003 moved sharing down to the budget.
 Anyone who finds the URL can create an account, and that account opens
 nothing. Access comes from owning a budget or holding a code for one. A
 stranger who signs up lands on "no budgets yet" and stops there.
+
+## The shopping list
+
+A living list attached to a budget — so a budget you have shared shares its
+shopping list too, and whoever you live with can add to it.
+
+Each line is a thing, a shop and a price. The list groups by shop and
+subtotals each one, because that is how you pay for them: you want to know
+what this trip costs at Migros separately from what it costs at Amazon.
+Lines carry their own currency like everything else.
+
+Tick things off as you buy them. When the trip is done, **Add to budget**
+turns what you actually bought into an item in the current cycle and clears
+those lines. Anything you did not find stays on the list for next time.
+
+The total goes in as one item per currency rather than one converted figure:
+summing across currencies would need a rate, and the budget already knows how
+to convert an item, so nothing is lost. The whole thing is one database
+transaction — a half-finished checkout would either double-count the trip or
+lose it.
 
 ## Currencies
 
