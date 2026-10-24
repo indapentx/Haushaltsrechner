@@ -73,3 +73,36 @@ describe('byAmount', () => {
     expect(byAmount(mixed, 'high').map((i) => i.id)).toEqual(['paid-big', 'unpaid-small']);
   });
 });
+
+describe('byAmount across currencies', () => {
+  const rent = item({ id: 'rent', amount: 800, currency: 'EUR' });
+  const power = item({ id: 'power', amount: 1250.75, currency: 'TRY' });
+  const food = item({ id: 'food', amount: 6500, currency: 'TRY' });
+
+  /** €800 is ₺44.640 at this cycle's rate. */
+  const inTry = (i: typeof rent) => (i.currency === 'EUR' ? i.amount * 55.8 : i.amount);
+
+  it('ranks by raw number when no converter is given', () => {
+    expect(byAmount([rent, power, food], 'high').map((i) => i.id)).toEqual([
+      'food',
+      'power',
+      'rent',
+    ]);
+  });
+
+  it('puts the foreign rent first once converted, which is the truth', () => {
+    expect(byAmount([rent, power, food], 'high', inTry).map((i) => i.id)).toEqual([
+      'rent',
+      'food',
+      'power',
+    ]);
+  });
+
+  it('reverses correctly too', () => {
+    expect(byAmount([rent, power, food], 'low', inTry).map((i) => i.id)).toEqual([
+      'power',
+      'food',
+      'rent',
+    ]);
+  });
+});

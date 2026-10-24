@@ -20,9 +20,20 @@ export function checklistOrder(items: readonly Item[]): Item[] {
 
 export type AmountSort = 'high' | 'low';
 
-/** Expenses order: the one control on that screen. */
-export function byAmount(items: readonly Item[], direction: AmountSort): Item[] {
+/**
+ * Order by size.
+ *
+ * `valueOf` exists because an item's raw amount is not comparable across
+ * currencies: €800 of rent is a bigger expense than ₺1.250 of electricity,
+ * but a smaller number. Callers pass the value converted to whatever is on
+ * screen, so the biggest item really does come first.
+ */
+export function byAmount(
+  items: readonly Item[],
+  direction: AmountSort,
+  valueOf: (item: Item) => number = (item) => item.amount,
+): Item[] {
   return [...items].sort((a, b) =>
-    direction === 'high' ? b.amount - a.amount : a.amount - b.amount,
+    direction === 'high' ? valueOf(b) - valueOf(a) : valueOf(a) - valueOf(b),
   );
 }

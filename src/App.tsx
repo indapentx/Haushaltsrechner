@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { TabBar, type Tab } from './components/TabBar';
 import { Button } from './components/ui';
 import Checklist from './screens/Checklist';
-import Expenses from './screens/Expenses';
 import Overview from './screens/Overview';
 import Settings from './screens/Settings';
 import FirstBudget from './screens/FirstBudget';
@@ -35,7 +34,6 @@ function Main() {
       <main className="mx-auto w-full max-w-md pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:border-x sm:border-rule sm:min-h-dvh">
         {tab === 'Overview' && <Overview />}
         {tab === 'Checklist' && <Checklist />}
-        {tab === 'Expenses' && <Expenses />}
         {tab === 'Settings' && <Settings />}
       </main>
 
