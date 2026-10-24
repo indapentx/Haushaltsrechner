@@ -101,3 +101,31 @@ describe('toAmount', () => {
     expect(toAmount(undefined)).toBe(0);
   });
 });
+
+describe('the currency symbol always leads', () => {
+  it('puts it in front of a euro amount, not behind it', () => {
+    // Intl on its own would give "1.234,50 €".
+    expect(formatMoney(1234.5, 'EUR')).toBe('€1.234,50');
+    expect(formatMoney(5.69, 'EUR')).toBe('€5,69');
+  });
+
+  it('keeps it in front for a lira amount too', () => {
+    expect(formatMoney(11700, 'TRY')).toBe('₺11.700,00');
+  });
+
+  it('is consistent across currencies, which is the whole point', () => {
+    for (const currency of ['TRY', 'EUR', 'USD', 'GBP']) {
+      expect(formatMoney(1, currency)).toMatch(/^\D/);
+      expect(formatMoney(1, currency)).not.toMatch(/\d\s*\D$/);
+    }
+  });
+
+  it('puts the minus ahead of the symbol', () => {
+    expect(formatMoney(-1234.5, 'EUR')).toBe('−€1.234,50');
+    expect(formatMoney(-1234.5, 'TRY')).toBe('−₺1.234,50');
+  });
+
+  it('still reads zero sensibly', () => {
+    expect(formatMoney(0, 'EUR')).toBe('€0,00');
+  });
+});

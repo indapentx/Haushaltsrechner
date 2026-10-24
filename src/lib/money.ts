@@ -81,16 +81,36 @@ function withRealMinus(s: string): string {
   return s.replace(/-/g, '−');
 }
 
-/** With the currency symbol. Used for the balance and running totals. */
+const SYMBOLS = new Map<string, string>();
+
+/** `₺`, `€`, `$`, `£` — whatever the currency's narrow symbol is. */
+function currencySymbol(currency: string): string {
+  const cached = SYMBOLS.get(currency);
+  if (cached) return cached;
+  const symbol =
+    new Intl.NumberFormat(localeFor(currency), {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'narrowSymbol',
+    })
+      .formatToParts(0)
+      .find((part) => part.type === 'currency')?.value ?? currency;
+  SYMBOLS.set(currency, symbol);
+  return symbol;
+}
+
+/**
+ * With the currency symbol, always leading.
+ *
+ * Intl would place it where each currency's own convention puts it — in
+ * front of a lira, behind a euro — which is right in isolation and wrong in
+ * a ledger, where ₺11.700,00 and 5,69 € sitting on two screens of the same
+ * app read as two different apps. The symbol leads, everywhere.
+ */
 export function formatMoney(value: number, currency: string): string {
-  const formatted = new Intl.NumberFormat(localeFor(currency), {
-    style: 'currency',
-    currency,
-    currencyDisplay: 'narrowSymbol',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value || 0);
-  return withRealMinus(formatted);
+  const amount = value || 0;
+  const sign = amount < 0 ? '−' : '';
+  return `${sign}${currencySymbol(currency)}${formatAmount(Math.abs(amount), currency)}`;
 }
 
 /** Bare grouped figure. Used in list rows, where a symbol on every line is noise. */
