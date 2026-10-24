@@ -190,7 +190,12 @@ export default function Groceries() {
           </div>
         </div>
         <div className="border-l border-rule px-5 py-4">
-          <Micro>In the basket</Micro>
+          {/* Same wrapper as the cell on the left: a bare inline label sits
+              in the parent's line box and drops this whole column a few
+              pixels below the other one. */}
+          <div className="flex items-baseline justify-between gap-2">
+            <Micro>In the basket</Micro>
+          </div>
           <div className="mt-1.5 font-mono tnum text-[18px]">
             {formatAmount(bought, listCurrency)}
           </div>
