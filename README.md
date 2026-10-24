@@ -157,7 +157,7 @@ Anyone who finds the URL can create an account, and that account opens
 nothing. Access comes from owning a budget or holding a code for one. A
 stranger who signs up lands on "no budgets yet" and stops there.
 
-## The shopping list
+## Lebensmittel — the shopping list
 
 A living list attached to a budget — so a budget you have shared shares its
 shopping list too, and whoever you live with can add to it.
@@ -169,8 +169,12 @@ what this trip costs at Rewe separately from what it costs at Aldi.
 Everything on the list is in **euros** — the shopping happens in Germany, and
 a currency picker on every line is noise when the answer never changes. It is
 one constant, `GROCERY_CURRENCY` in `src/screens/Groceries.tsx`, if the
-shopping ever moves country. The budget still converts it like any other
-item, so a euro list against a lira budget reads correctly.
+shopping ever moves country.
+
+The list is also **read** in euros by default, regardless of what the budget
+it belongs to is denominated in: a euro shop makes no sense displayed in lira
+while you are standing in the shop. Tap the currency beside the total to see
+the same figures in the budget's currency; the choice is remembered.
 
 The shop **sticks**: whatever you used last is already filled in, remembered
 per budget, until you change it. Adding ten things from one shop should not
@@ -221,6 +225,12 @@ differ by a percent or two.
 When a new cycle rolls over, each copied item keeps its currency but is
 re-dated to the new cycle. Next month's rent converts at next month's rate,
 which is what you actually pay.
+
+## It reopens where you left it
+
+The app remembers which tab you were on and returns to it. Opening it to
+check the shopping list and landing on the Overview every time is a small
+annoyance that adds up.
 
 ## On the phone
 

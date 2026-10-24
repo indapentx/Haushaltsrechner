@@ -1,6 +1,6 @@
 import { Rule } from './ui';
 
-export const TABS = ['Overview', 'Checklist', 'Shopping', 'Settings'] as const;
+export const TABS = ['Overview', 'Checklist', 'Lebensmittel', 'Settings'] as const;
 export type Tab = (typeof TABS)[number];
 
 /**
@@ -27,7 +27,7 @@ export function TabBar({
                 type="button"
                 onClick={() => onSelect(tab)}
                 aria-current={selected ? 'page' : undefined}
-                className={`micro min-h-14 border-r border-rule last:border-r-0 ${
+                className={`micro min-h-14 border-r border-rule px-1 text-[10px] tracking-[0.06em] last:border-r-0 ${
                   selected ? 'text-text' : 'text-text-muted'
                 }`}
               >

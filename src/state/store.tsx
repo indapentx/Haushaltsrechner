@@ -215,10 +215,18 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
   // ---------------------------------------------------------------- rates
 
-  /** Resolve every rate the loaded rows need for the chosen display currency. */
+  /**
+   * Resolve every rate the loaded rows need for the chosen display currency.
+   * Takes anything dated and denominated — items, income and the shopping
+   * list — because any of them can be read in a currency it is not in.
+   */
   const resolveRates = useCallback(
-    async (items: Item[], incomes: Income[], display: string, known: RateTable) => {
-      const needs: RateNeed[] = [...items, ...incomes].map((r) => ({
+    async (
+      rows: readonly { rate_date: string; currency: string }[],
+      display: string,
+      known: RateTable,
+    ) => {
+      const needs: RateNeed[] = rows.map((r) => ({
         rate_date: r.rate_date,
         currency: r.currency,
       }));
@@ -263,7 +271,11 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       });
 
       const display = displayFor(state.profiles, profileId, state.displayOverride);
-      const resolved = await resolveRates(items, incomes, display, state.rates);
+      const resolved = await resolveRates(
+        [...items, ...incomes, ...groceries],
+        display,
+        state.rates,
+      );
       if (token !== loadToken.current) return;
       patch({ rates: resolved.rates, ratesApproximate: resolved.approximate });
     },
@@ -296,7 +308,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       patch({ cycle, items, incomes, viewIndex: index });
 
       const display = displayFor(state.profiles, state.activeProfileId, state.displayOverride);
-      const resolved = await resolveRates(items, incomes, display, state.rates);
+      const resolved = await resolveRates([...items, ...incomes], display, state.rates);
       if (token !== loadToken.current) return;
       patch({ rates: resolved.rates, ratesApproximate: resolved.approximate });
     },
@@ -693,9 +705,10 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   // When the display currency changes, the rates already loaded may not
   // cover it. Fetch what the new choice needs.
   useEffect(() => {
-    if (state.items.length === 0 && state.incomes.length === 0) return;
+    if (state.items.length === 0 && state.incomes.length === 0 && state.groceries.length === 0)
+      return;
     let active = true;
-    resolveRates(state.items, state.incomes, currency, state.rates)
+    resolveRates([...state.items, ...state.incomes, ...state.groceries], currency, state.rates)
       .then((resolved) => {
         if (!active) return;
         patch({ rates: resolved.rates, ratesApproximate: resolved.approximate });

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { TabBar, type Tab } from './components/TabBar';
+import { useEffect, useState } from 'react';
+import { TABS, TabBar, type Tab } from './components/TabBar';
 import { Button } from './components/ui';
 import Checklist from './screens/Checklist';
 import Overview from './screens/Overview';
@@ -9,6 +9,8 @@ import Groceries from './screens/Groceries';
 import SignIn from './screens/SignIn';
 import { BudgetProvider, useBudget } from './state/store';
 import { useAuth } from './state/useAuth';
+
+const TAB_KEY = 'budget.tab';
 
 export default function App() {
   const { session, loading } = useAuth();
@@ -25,7 +27,24 @@ export default function App() {
 
 function Main() {
   const { loading, profiles, error, dismissError } = useBudget();
-  const [tab, setTab] = useState<Tab>('Overview');
+
+  // Come back to where you were, not to the front page.
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const saved = localStorage.getItem(TAB_KEY);
+      return TABS.includes(saved as Tab) ? (saved as Tab) : 'Overview';
+    } catch {
+      return 'Overview';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAB_KEY, tab);
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [tab]);
 
   if (loading) return <Splash />;
   if (profiles.length === 0) return <FirstBudget />;
@@ -35,7 +54,7 @@ function Main() {
       <main className="mx-auto w-full max-w-md pt-[env(safe-area-inset-top)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:border-x sm:border-rule sm:min-h-dvh">
         {tab === 'Overview' && <Overview />}
         {tab === 'Checklist' && <Checklist />}
-        {tab === 'Shopping' && <Groceries />}
+        {tab === 'Lebensmittel' && <Groceries />}
         {tab === 'Settings' && <Settings />}
       </main>
 

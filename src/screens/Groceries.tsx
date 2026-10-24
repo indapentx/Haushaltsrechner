@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Confirm, Micro, Modal, Rule, TextInput } from '../components/ui';
 import type { GroceryItem } from '../lib/db';
+import { convert } from '../lib/fx';
 import {
   formatAmount,
   formatMoney,
@@ -22,12 +23,15 @@ const GROCERY_CURRENCY = 'EUR';
 /** Remembered per budget, so the shop you used last is already filled in. */
 const LAST_SHOP_KEY = 'budget.lastShop';
 
+/** Which currency the list's own totals are read in. */
+const LIST_CURRENCY_KEY = 'budget.listCurrency';
+
 export default function Groceries() {
   const {
     groceries,
     currency,
+    rates,
     activeProfile,
-    inDisplay,
     addGrocery,
     editGrocery,
     removeGrocery,
@@ -37,6 +41,33 @@ export default function Groceries() {
   } = useBudget();
 
   const profileId = activeProfile?.id ?? null;
+
+  /*
+   * The list is bought in euros, so it is read in euros by default — even
+   * when the budget it belongs to is denominated in something else. Tap the
+   * currency to see the same figures in the budget's own currency.
+   */
+  const [listCurrency, setListCurrency] = useState<string>(() => {
+    try {
+      return localStorage.getItem(LIST_CURRENCY_KEY) ?? GROCERY_CURRENCY;
+    } catch {
+      return GROCERY_CURRENCY;
+    }
+  });
+
+  function switchCurrency() {
+    const next = listCurrency === GROCERY_CURRENCY ? currency : GROCERY_CURRENCY;
+    setListCurrency(next);
+    try {
+      localStorage.setItem(LIST_CURRENCY_KEY, next);
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+
+  /** A line's worth in whichever currency the list is being read in. */
+  const inListCurrency = (row: GroceryItem) =>
+    convert(row.amount, row.currency, listCurrency, row.rate_date, rates);
   const [name, setName] = useState('');
   const [store, setStore] = useState('');
   const [amount, setAmount] = useState('');
@@ -68,7 +99,7 @@ export default function Groceries() {
     [groceries],
   );
 
-  const value = (row: GroceryItem) => inDisplay(row) ?? 0;
+  const value = (row: GroceryItem) => inListCurrency(row) ?? 0;
 
   /** Grouped by shop, because that is how you pay for them. */
   const groups = useMemo(() => {
@@ -86,7 +117,8 @@ export default function Groceries() {
         ),
         subtotal: sumAmounts(rows.map(value)),
       }));
-  }, [groceries, inDisplay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groceries, listCurrency, rates]);
 
   const total = sumAmounts(groceries.map(value));
   const bought = sumAmounts(groceries.filter((g) => g.is_bought).map(value));
@@ -142,15 +174,25 @@ export default function Groceries() {
     <div className="pb-4">
       <div className="grid grid-cols-2">
         <div className="px-5 py-4">
-          <Micro>Shopping list</Micro>
+          <div className="flex items-baseline justify-between gap-2">
+            <Micro>Total</Micro>
+            <button
+              type="button"
+              onClick={switchCurrency}
+              aria-label={`Showing ${listCurrency}. Tap to change.`}
+              className="micro text-text-secondary active:opacity-60"
+            >
+              {listCurrency}
+            </button>
+          </div>
           <div className="mt-1.5 font-mono tnum text-[18px]">
-            {formatMoney(total, currency)}
+            {formatMoney(total, listCurrency)}
           </div>
         </div>
         <div className="border-l border-rule px-5 py-4">
           <Micro>In the basket</Micro>
           <div className="mt-1.5 font-mono tnum text-[18px]">
-            {formatAmount(bought, currency)}
+            {formatAmount(bought, listCurrency)}
           </div>
         </div>
       </div>
@@ -166,13 +208,13 @@ export default function Groceries() {
             <div className="flex items-baseline justify-between bg-surface px-5 py-2">
               <Micro className="text-text">{group.shop}</Micro>
               <span className="micro font-mono text-text-secondary">
-                {formatAmount(group.subtotal, currency)}
+                {formatAmount(group.subtotal, listCurrency)}
               </span>
             </div>
             <Rule />
             {group.rows.map((row) => {
-              const foreign = row.currency !== currency;
-              const converted = inDisplay(row);
+              const foreign = row.currency !== listCurrency;
+              const converted = inListCurrency(row);
               return (
                 <div key={row.id} className="flex items-center border-b border-rule">
                   <button
@@ -222,7 +264,7 @@ export default function Groceries() {
                         <span className="micro mt-0.5 text-text-muted">
                           {converted === null
                             ? 'no rate'
-                            : `≈ ${formatAmount(converted, currency)}`}
+                            : `≈ ${formatAmount(converted, listCurrency)}`}
                         </span>
                       )}
                     </span>
@@ -247,20 +289,20 @@ export default function Groceries() {
         <Micro>Add</Micro>
         <TextInput
           className="mt-2"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Banana"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void submitNew();
-          }}
+          list="known-stores"
+          value={store}
+          onChange={(e) => setStore(e.target.value)}
+          placeholder="Shop"
         />
         <div className="mt-2 flex gap-2">
           <TextInput
             className="min-w-0 flex-1 basis-0"
-            list="known-stores"
-            value={store}
-            onChange={(e) => setStore(e.target.value)}
-            placeholder="Shop"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Item"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submitNew();
+            }}
           />
           <TextInput
             className="w-24 shrink-0 grow-0 basis-24 font-mono tnum"
@@ -367,7 +409,7 @@ export default function Groceries() {
       <Confirm
         open={confirmCheckout}
         title="Add to budget"
-        body={`${formatAmount(bought, currency)} goes into this cycle as an item called “Groceries”, and the ticked lines leave the list. Anything still unticked stays.`}
+        body={`${formatAmount(bought, listCurrency)} goes into this cycle as an item called “Groceries”, and the ticked lines leave the list. Anything still unticked stays.`}
         confirmLabel="Add it"
         onCancel={() => setConfirmCheckout(false)}
         onConfirm={() => {
