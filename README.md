@@ -164,8 +164,17 @@ shopping list too, and whoever you live with can add to it.
 
 Each line is a thing, a shop and a price. The list groups by shop and
 subtotals each one, because that is how you pay for them: you want to know
-what this trip costs at Migros separately from what it costs at Amazon.
-Lines carry their own currency like everything else.
+what this trip costs at Rewe separately from what it costs at Aldi.
+
+Everything on the list is in **euros** — the shopping happens in Germany, and
+a currency picker on every line is noise when the answer never changes. It is
+one constant, `GROCERY_CURRENCY` in `src/screens/Groceries.tsx`, if the
+shopping ever moves country. The budget still converts it like any other
+item, so a euro list against a lira budget reads correctly.
+
+The shop **sticks**: whatever you used last is already filled in, remembered
+per budget, until you change it. Adding ten things from one shop should not
+mean typing its name ten times.
 
 Tick things off as you buy them. When the trip is done, **Add to budget**
 turns what you actually bought into an item in the current cycle and clears

@@ -1,18 +1,26 @@
-import { useMemo, useState } from 'react';
-import {
-  Button,
-  Confirm,
-  CurrencyChips,
-  Micro,
-  Modal,
-  Rule,
-  TextInput,
-} from '../components/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Confirm, Micro, Modal, Rule, TextInput } from '../components/ui';
 import type { GroceryItem } from '../lib/db';
-import { CURRENCIES, formatAmount, formatMoney, parseAmount, sumAmounts, toEditableString } from '../lib/money';
+import {
+  formatAmount,
+  formatMoney,
+  parseAmount,
+  sumAmounts,
+  toEditableString,
+} from '../lib/money';
 import { useBudget } from '../state/store';
 
 const NO_STORE = 'Anywhere';
+
+/**
+ * The shopping happens in Germany, so every line is in euros. Kept as one
+ * constant rather than a picker: a currency chooser on every line is noise
+ * when the answer never changes. Change this if the shopping moves country.
+ */
+const GROCERY_CURRENCY = 'EUR';
+
+/** Remembered per budget, so the shop you used last is already filled in. */
+const LAST_SHOP_KEY = 'budget.lastShop';
 
 export default function Groceries() {
   const {
@@ -28,19 +36,31 @@ export default function Groceries() {
     checkoutGroceries,
   } = useBudget();
 
-  const ownCurrency = activeProfile?.currency ?? 'TRY';
+  const profileId = activeProfile?.id ?? null;
   const [name, setName] = useState('');
   const [store, setStore] = useState('');
   const [amount, setAmount] = useState('');
-  const [newCurrency, setNewCurrency] = useState(ownCurrency);
   const [editing, setEditing] = useState<GroceryItem | null>(null);
   const [editName, setEditName] = useState('');
   const [editStore, setEditStore] = useState('');
   const [editAmount, setEditAmount] = useState('');
-  const [editCurrency, setEditCurrency] = useState(ownCurrency);
+  const [adding, setAdding] = useState(false);
+  const addInFlight = useRef(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmCheckout, setConfirmCheckout] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+
+  // The shop sticks until it is changed: adding ten things from one shop
+  // should not mean typing its name ten times, or even once if it is the
+  // same shop as last week.
+  useEffect(() => {
+    if (!profileId) return;
+    try {
+      setStore(localStorage.getItem(`${LAST_SHOP_KEY}.${profileId}`) ?? '');
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [profileId]);
 
   /** Shops already used on this list, offered as suggestions. */
   const knownStores = useMemo(
@@ -74,11 +94,31 @@ export default function Groceries() {
 
   async function submitNew() {
     const trimmed = name.trim();
-    if (!trimmed) return;
-    await addGrocery(trimmed, store, parseAmount(amount) ?? 0, newCurrency);
+    // A double tap on a phone is easy; without this guard it adds the line
+    // twice.
+    if (!trimmed || addInFlight.current) return;
+    addInFlight.current = true;
+    setAdding(true);
+    try {
+      await addGrocery(trimmed, store, parseAmount(amount) ?? 0, GROCERY_CURRENCY);
+    } finally {
+      addInFlight.current = false;
+      setAdding(false);
+    }
     setName('');
     setAmount('');
-    // The shop usually stays the same for the next few lines.
+    // The shop is deliberately left alone, and remembered for next time.
+    if (profileId) {
+      try {
+        if (store.trim()) {
+          localStorage.setItem(`${LAST_SHOP_KEY}.${profileId}`, store.trim());
+        } else {
+          localStorage.removeItem(`${LAST_SHOP_KEY}.${profileId}`);
+        }
+      } catch {
+        /* storage may be unavailable */
+      }
+    }
   }
 
   function openEdit(row: GroceryItem) {
@@ -86,7 +126,6 @@ export default function Groceries() {
     setEditName(row.name);
     setEditStore(row.store ?? '');
     setEditAmount(toEditableString(row.amount, row.currency));
-    setEditCurrency(row.currency);
   }
 
   async function saveEdit() {
@@ -95,7 +134,6 @@ export default function Groceries() {
       name: editName.trim() || editing.name,
       store: editStore.trim() || null,
       amount: parseAmount(editAmount) ?? editing.amount,
-      currency: editCurrency,
     });
     setEditing(null);
   }
@@ -235,7 +273,12 @@ export default function Groceries() {
               if (e.key === 'Enter') void submitNew();
             }}
           />
-          <Button variant="solid" className="px-5" disabled={!name.trim()} onClick={submitNew}>
+          <Button
+            variant="solid"
+            className="px-5"
+            disabled={!name.trim() || adding}
+            onClick={submitNew}
+          >
             Add
           </Button>
         </div>
@@ -244,12 +287,6 @@ export default function Groceries() {
             <option key={shop} value={shop} />
           ))}
         </datalist>
-        <CurrencyChips
-          className="mt-2"
-          value={newCurrency}
-          options={CURRENCIES}
-          onChange={setNewCurrency}
-        />
       </div>
 
       {/* --------------------------------------------------------- finish up */}
@@ -262,17 +299,9 @@ export default function Groceries() {
         >
           Add to budget
         </Button>
-        <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
-          {boughtCount === 0
-            ? 'Tick things off as you buy them. What you have bought can then be added to this cycle as one item.'
-            : `Adds ${formatAmount(bought, currency)} to this cycle and clears the ${boughtCount} ticked ${
-                boughtCount === 1 ? 'line' : 'lines'
-              }. Anything you did not find stays on the list.`}
-        </p>
-
         <Button
           variant="outline"
-          className="mt-5 w-full"
+          className="mt-3 w-full"
           disabled={groceries.length === 0}
           onClick={() => setConfirmClear(true)}
         >
@@ -318,15 +347,6 @@ export default function Groceries() {
             }}
           />
         </label>
-        <div className="mt-4">
-          <Micro>Currency</Micro>
-          <CurrencyChips
-            className="mt-2"
-            value={editCurrency}
-            options={CURRENCIES}
-            onChange={setEditCurrency}
-          />
-        </div>
         <div className="mt-6 flex gap-3">
           <Button
             variant="outline"

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ItemRow } from '../components/ItemRow';
 import { useFlipList } from '../components/useFlipList';
 import {
@@ -38,6 +38,8 @@ export default function Checklist() {
   const [editing, setEditing] = useState<Item | null>(null);
   const [editName, setEditName] = useState('');
   const [editAmount, setEditAmount] = useState('');
+  const [adding, setAdding] = useState(false);
+  const addInFlight = useRef(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Item | null>(null);
 
@@ -47,8 +49,16 @@ export default function Checklist() {
   async function submitNew() {
     const trimmed = name.trim();
     const parsed = parseAmount(amount);
-    if (!trimmed) return;
-    await addItem(trimmed, parsed ?? 0, newCurrency);
+    // Guard against a double tap adding the item twice.
+    if (!trimmed || addInFlight.current) return;
+    addInFlight.current = true;
+    setAdding(true);
+    try {
+      await addItem(trimmed, parsed ?? 0, newCurrency);
+    } finally {
+      addInFlight.current = false;
+      setAdding(false);
+    }
     setName('');
     setAmount('');
     setNewCurrency(ownCurrency);
@@ -131,7 +141,7 @@ export default function Checklist() {
           <Button
             variant="solid"
             className="px-5"
-            disabled={!name.trim()}
+            disabled={!name.trim() || adding}
             onClick={submitNew}
           >
             Add
