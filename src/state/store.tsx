@@ -17,6 +17,7 @@ import type {
   Income,
   Item,
   Profile,
+  Shop,
 } from '../lib/db';
 import { currentCycleKey } from '../lib/cycle';
 import { convert, loadRates, type RateNeed, type RateTable } from '../lib/fx';
@@ -42,6 +43,8 @@ interface State {
   incomes: Income[];
   /** The shopping list for the active budget. Not tied to a cycle. */
   groceries: GroceryItem[];
+  /** The shops this budget buys from, picked rather than re-typed. */
+  shops: Shop[];
   rates: RateTable;
   /** At least one figure fell back to an older day's rate. */
   ratesApproximate: boolean;
@@ -62,6 +65,7 @@ const INITIAL: State = {
   items: [],
   incomes: [],
   groceries: [],
+  shops: [],
   rates: {},
   ratesApproximate: false,
   displayOverride: null,
@@ -106,11 +110,20 @@ interface BudgetContext extends State {
     name: string,
     store: string,
     amount: number,
+    quantity: number,
     currency: string,
   ) => Promise<void>;
+  addShop: (name: string) => Promise<void>;
+  removeShop: (id: string) => Promise<void>;
   editGrocery: (
     id: string,
-    patch: { name?: string; store?: string | null; amount?: number; currency?: string },
+    patch: {
+      name?: string;
+      store?: string | null;
+      amount?: number;
+      quantity?: number;
+      currency?: string;
+    },
   ) => Promise<void>;
   removeGrocery: (id: string) => Promise<void>;
   toggleGrocery: (id: string) => Promise<void>;
@@ -253,11 +266,12 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       const token = ++loadToken.current;
       const startKey = currentCycleKey();
       const cycle = await db.ensureCycle(profileId, startKey);
-      const [cycles, items, incomes, groceries] = await Promise.all([
+      const [cycles, items, incomes, groceries, shops] = await Promise.all([
         db.listCycleStubs(profileId),
         db.listItems(cycle.id),
         db.listIncomes(cycle.id),
         db.listGroceries(profileId),
+        db.listShops(profileId),
       ]);
       if (token !== loadToken.current) return;
 
@@ -267,6 +281,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         items,
         incomes,
         groceries,
+        shops,
         viewIndex: Math.max(0, cycles.findIndex((c) => c.start_date === startKey)),
       });
 
@@ -284,7 +299,15 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!state.activeProfileId) {
-      patch({ cycle: null, items: [], incomes: [], groceries: [], cycles: [], viewIndex: -1 });
+      patch({
+        cycle: null,
+        items: [],
+        incomes: [],
+        groceries: [],
+        shops: [],
+        cycles: [],
+        viewIndex: -1,
+      });
       return;
     }
     loadCycle(state.activeProfileId).catch(fail);
@@ -526,7 +549,13 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   // --------------------------------------------------------- groceries
 
   const addGrocery = useCallback(
-    async (name: string, store: string, amount: number, currency: string) => {
+    async (
+      name: string,
+      store: string,
+      amount: number,
+      quantity: number,
+      currency: string,
+    ) => {
       const profileId = state.activeProfileId;
       const cycle = state.cycle;
       if (!profileId || !cycle) return;
@@ -536,6 +565,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
           name,
           store.trim() || null,
           amount,
+          quantity,
           currency,
           cycle.start_date,
           state.groceries.length,
@@ -546,6 +576,39 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       }
     },
     [state.activeProfileId, state.cycle, state.groceries.length, patch, fail],
+  );
+
+  const addShop = useCallback(
+    async (name: string) => {
+      const profileId = state.activeProfileId;
+      const trimmed = name.trim();
+      if (!profileId || !trimmed) return;
+      if (state.shops.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
+      try {
+        const shop = await db.createShop(profileId, trimmed);
+        patch((prev) => ({ shops: [...prev.shops, shop] }));
+      } catch (e) {
+        fail(e);
+      }
+    },
+    [state.activeProfileId, state.shops, patch, fail],
+  );
+
+  const removeShop = useCallback(
+    async (id: string) => {
+      patch((prev) => ({ shops: prev.shops.filter((s) => s.id !== id) }));
+      try {
+        await db.deleteShop(id);
+      } catch (e) {
+        fail(e);
+        if (state.activeProfileId) {
+          db.listShops(state.activeProfileId)
+            .then((shops) => patch({ shops }))
+            .catch(fail);
+        }
+      }
+    },
+    [state.activeProfileId, patch, fail],
   );
 
   const reloadGroceries = useCallback(async () => {
@@ -771,6 +834,8 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     toggleItem,
     resetAll,
     addGrocery,
+    addShop,
+    removeShop,
     editGrocery,
     removeGrocery,
     toggleGrocery,

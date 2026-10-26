@@ -28,6 +28,10 @@ const CLOSE_HOUSEHOLD = readFileSync(
   'utf8',
 );
 const GROCERIES = readFileSync(join(ROOT, 'supabase/migrations/005_groceries.sql'), 'utf8');
+const SHOPS = readFileSync(
+  join(ROOT, 'supabase/migrations/006_shops_and_quantity.sql'),
+  'utf8',
+);
 
 const OWNER = '11111111-1111-1111-1111-111111111111';
 const HOUSEMATE = '22222222-2222-2222-2222-222222222222';
@@ -582,5 +586,88 @@ describe('migration 005 — the shopping list', () => {
 
   it('can be run twice', async () => {
     await expect(db.exec(GROCERIES)).resolves.toBeDefined();
+  }, 60_000);
+});
+
+describe('migration 006 — shops and quantity', () => {
+  let db: PGlite;
+  let evId: string;
+  let cycleId: string;
+
+  beforeAll(async () => {
+    db = await freshDatabase();
+    await db.exec(MIGRATION);
+    await db.exec(SHARING);
+    await db.exec(CLOSE_HOUSEHOLD);
+    await db.exec(GROCERIES);
+
+    const profile = await db.query<{ id: string }>(
+      'select id from profiles order by sort_order limit 1',
+    );
+    evId = profile.rows[0].id;
+    const cycle = await db.query<{ id: string }>(
+      `select id from cycles where profile_id = '${evId}' order by start_date desc limit 1`,
+    );
+    cycleId = cycle.rows[0].id;
+
+    // A list from before the migration, with free-text shops.
+    await db.exec(`
+      insert into grocery_items (profile_id, name, store, amount, currency, is_bought) values
+        ('${evId}', 'Eier',    'Edeka',  0.69, 'EUR', true),
+        ('${evId}', 'Wasser',  'Edeka',  5.00, 'EUR', true),
+        ('${evId}', 'Batterie','Amazon', 8.99, 'EUR', false),
+        ('${evId}', 'Brot',    '  ',     2.20, 'EUR', false);
+    `);
+
+    await db.exec(SHOPS);
+    await db.exec(`grant all on all tables in schema public to authenticated;`);
+  }, 60_000);
+
+  it('carries the shops already in use across, without duplicates or blanks', async () => {
+    const rows = await asUser<{ name: string }>(db, OWNER, 'select name from shops order by name');
+    expect(rows.map((r) => r.name)).toEqual(['Amazon', 'Edeka']);
+  });
+
+  it('keeps shops private to people who can see the budget', async () => {
+    expect(await asUser(db, STRANGER, 'select * from shops')).toHaveLength(0);
+  });
+
+  it('refuses the same shop twice on one budget', async () => {
+    await expect(
+      asUser(db, OWNER, `insert into shops (profile_id, name) values ('${evId}', 'Edeka')`),
+    ).rejects.toThrow();
+  });
+
+  it('defaults every existing line to a quantity of one', async () => {
+    const rows = await asUser<{ quantity: number }>(db, OWNER, 'select quantity from grocery_items');
+    expect(rows.every((r) => r.quantity === 1)).toBe(true);
+  });
+
+  it('refuses a quantity below one', async () => {
+    await expect(
+      asUser(db, OWNER, `update grocery_items set quantity = 0 where name = 'Eier'`),
+    ).rejects.toThrow();
+  });
+
+  it('multiplies price by quantity at checkout', async () => {
+    await asUser(db, OWNER, `update grocery_items set quantity = 6 where name = 'Eier'`);
+    const created = await asUser<{ amount: string }>(
+      db,
+      OWNER,
+      `select amount from checkout_groceries('${evId}', '${cycleId}', 'Lebensmittel')`,
+    );
+    // Six eggs at 0.69 is 4.14, plus 5.00 of water.
+    expect(Number(created[0].amount)).toBe(9.14);
+  });
+
+  it('leaves the shops behind when the list is cleared', async () => {
+    const left = await asUser(db, OWNER, 'select * from grocery_items');
+    expect(left).toHaveLength(2); // the two unticked lines
+    const shops = await asUser(db, OWNER, 'select name from shops');
+    expect(shops).toHaveLength(2); // Amazon and Edeka survive checkout
+  });
+
+  it('can be run twice', async () => {
+    await expect(db.exec(SHOPS)).resolves.toBeDefined();
   }, 60_000);
 });

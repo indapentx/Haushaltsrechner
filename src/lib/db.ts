@@ -309,12 +309,22 @@ export async function resetCycleItems(cycleId: string): Promise<void> {
 
 // ------------------------------------------------------------- groceries
 
+export interface Shop {
+  id: string;
+  profile_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface GroceryItem {
   id: string;
   profile_id: string;
   name: string;
   store: string | null;
   amount: number;
+  /** How many of it. The price is per one. */
+  quantity: number;
   currency: string;
   rate_date: string;
   is_bought: boolean;
@@ -325,6 +335,31 @@ export interface GroceryItem {
 
 function asGrocery(row: GroceryItem): GroceryItem {
   return { ...row, amount: toAmount(row.amount) };
+}
+
+export async function listShops(profileId: string): Promise<Shop[]> {
+  const { data } = await supabase
+    .from('shops')
+    .select('*')
+    .eq('profile_id', profileId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+    .throwOnError();
+  return data;
+}
+
+export async function createShop(profileId: string, name: string): Promise<Shop> {
+  const { data } = await supabase
+    .from('shops')
+    .insert({ profile_id: profileId, name })
+    .select()
+    .single()
+    .throwOnError();
+  return data;
+}
+
+export async function deleteShop(id: string): Promise<void> {
+  await supabase.from('shops').delete().eq('id', id).throwOnError();
 }
 
 export async function listGroceries(profileId: string): Promise<GroceryItem[]> {
@@ -343,6 +378,7 @@ export async function createGrocery(
   name: string,
   store: string | null,
   amount: number,
+  quantity: number,
   currency: string,
   rateDate: string,
   sortOrder: number,
@@ -354,6 +390,7 @@ export async function createGrocery(
       name,
       store,
       amount,
+      quantity,
       currency,
       rate_date: rateDate,
       sort_order: sortOrder,
@@ -367,7 +404,10 @@ export async function createGrocery(
 export async function updateGrocery(
   id: string,
   patch: Partial<
-    Pick<GroceryItem, 'name' | 'store' | 'amount' | 'currency' | 'is_bought' | 'bought_at'>
+    Pick<
+      GroceryItem,
+      'name' | 'store' | 'amount' | 'quantity' | 'currency' | 'is_bought' | 'bought_at'
+    >
   >,
 ): Promise<void> {
   await supabase.from('grocery_items').update(patch).eq('id', id).throwOnError();

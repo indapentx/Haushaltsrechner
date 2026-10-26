@@ -29,10 +29,13 @@ const LIST_CURRENCY_KEY = 'budget.listCurrency';
 export default function Groceries() {
   const {
     groceries,
+    shops,
     currency,
     rates,
     activeProfile,
     addGrocery,
+    addShop,
+    removeShop,
     editGrocery,
     removeGrocery,
     toggleGrocery,
@@ -65,16 +68,20 @@ export default function Groceries() {
     }
   }
 
-  /** A line's worth in whichever currency the list is being read in. */
+  /** A line's worth — price times how many — in the currency being read. */
   const inListCurrency = (row: GroceryItem) =>
-    convert(row.amount, row.currency, listCurrency, row.rate_date, rates);
+    convert(row.amount * row.quantity, row.currency, listCurrency, row.rate_date, rates);
   const [name, setName] = useState('');
   const [store, setStore] = useState('');
   const [amount, setAmount] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [managingShops, setManagingShops] = useState(false);
+  const [newShop, setNewShop] = useState('');
   const [editing, setEditing] = useState<GroceryItem | null>(null);
   const [editName, setEditName] = useState('');
   const [editStore, setEditStore] = useState('');
   const [editAmount, setEditAmount] = useState('');
+  const [editQuantity, setEditQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const addInFlight = useRef(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -92,12 +99,6 @@ export default function Groceries() {
       /* storage may be unavailable */
     }
   }, [profileId]);
-
-  /** Shops already used on this list, offered as suggestions. */
-  const knownStores = useMemo(
-    () => [...new Set(groceries.map((g) => g.store).filter(Boolean) as string[])].sort(),
-    [groceries],
-  );
 
   const value = (row: GroceryItem) => inListCurrency(row) ?? 0;
 
@@ -131,14 +132,16 @@ export default function Groceries() {
     if (!trimmed || addInFlight.current) return;
     addInFlight.current = true;
     setAdding(true);
+    const count = Math.max(1, Math.round(Number(quantity) || 1));
     try {
-      await addGrocery(trimmed, store, parseAmount(amount) ?? 0, GROCERY_CURRENCY);
+      await addGrocery(trimmed, store, parseAmount(amount) ?? 0, count, GROCERY_CURRENCY);
     } finally {
       addInFlight.current = false;
       setAdding(false);
     }
     setName('');
     setAmount('');
+    setQuantity('1');
     // The shop is deliberately left alone, and remembered for next time.
     if (profileId) {
       try {
@@ -158,6 +161,7 @@ export default function Groceries() {
     setEditName(row.name);
     setEditStore(row.store ?? '');
     setEditAmount(toEditableString(row.amount, row.currency));
+    setEditQuantity(row.quantity);
   }
 
   async function saveEdit() {
@@ -166,6 +170,7 @@ export default function Groceries() {
       name: editName.trim() || editing.name,
       store: editStore.trim() || null,
       amount: parseAmount(editAmount) ?? editing.amount,
+      quantity: Math.max(1, editQuantity),
     });
     setEditing(null);
   }
@@ -274,6 +279,21 @@ export default function Groceries() {
                       )}
                     </span>
                   </button>
+                  {/* One tap for another of the same thing — the commonest
+                      correction while shopping. Lowering it is done in the
+                      edit sheet. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void editGrocery(row.id, { quantity: row.quantity + 1 })
+                    }
+                    aria-label={`${row.name}: ${row.quantity}. Tap to add another.`}
+                    className={`micro h-11 w-9 ${
+                      row.quantity > 1 ? 'text-text' : 'text-text-muted'
+                    } active:text-text`}
+                  >
+                    ×{row.quantity}
+                  </button>
                   <button
                     type="button"
                     onClick={() => openEdit(row)}
@@ -292,25 +312,58 @@ export default function Groceries() {
       {/* ------------------------------------------------------- add a line */}
       <div className="mt-6 px-5">
         <Micro>Add</Micro>
+
+        {/* Pick the shop rather than typing it again. Tapping the chosen one
+            clears it, which files the line under Anywhere. */}
+        <div className="mt-2 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {shops.map((shop) => {
+            const chosen = store === shop.name;
+            return (
+              <button
+                key={shop.id}
+                type="button"
+                onClick={() => setStore(chosen ? '' : shop.name)}
+                aria-pressed={chosen}
+                className={`min-h-9 shrink-0 rounded-full px-4 text-[14px] ${
+                  chosen
+                    ? 'bg-white text-black'
+                    : 'border border-rule text-text-secondary active:bg-surface-raised'
+                }`}
+              >
+                {shop.name}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setManagingShops(true)}
+            aria-label="Add or remove a shop"
+            className="min-h-9 w-9 shrink-0 rounded-full border border-rule text-text-secondary active:bg-surface-raised"
+          >
+            +
+          </button>
+        </div>
+
         <TextInput
           className="mt-2"
-          list="known-stores"
-          value={store}
-          onChange={(e) => setStore(e.target.value)}
-          placeholder="Shop"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Item"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void submitNew();
+          }}
         />
         <div className="mt-2 flex gap-2">
           <TextInput
-            className="min-w-0 flex-1 basis-0"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Item"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void submitNew();
-            }}
+            className="w-16 shrink-0 grow-0 basis-16 text-center font-mono tnum"
+            inputMode="numeric"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value.replace(/\D/g, '').slice(0, 3))}
+            onBlur={() => setQuantity(String(Math.max(1, Number(quantity) || 1)))}
+            aria-label="How many"
           />
           <TextInput
-            className="w-24 shrink-0 grow-0 basis-24 font-mono tnum"
+            className="min-w-0 flex-1 basis-0 font-mono tnum"
             inputMode="decimal"
             enterKeyHint="done"
             value={amount}
@@ -329,11 +382,6 @@ export default function Groceries() {
             Add
           </Button>
         </div>
-        <datalist id="known-stores">
-          {knownStores.map((shop) => (
-            <option key={shop} value={shop} />
-          ))}
-        </datalist>
       </div>
 
       {/* --------------------------------------------------------- finish up */}
@@ -372,18 +420,50 @@ export default function Groceries() {
             onChange={(e) => setEditName(e.target.value)}
           />
         </label>
-        <label className="mt-4 block">
+        <div className="mt-4">
           <Micro>Shop</Micro>
-          <TextInput
-            className="mt-2"
-            list="known-stores"
-            value={editStore}
-            onChange={(e) => setEditStore(e.target.value)}
-            placeholder="Anywhere"
-          />
-        </label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {shops.map((shop) => (
+              <button
+                key={shop.id}
+                type="button"
+                onClick={() => setEditStore(editStore === shop.name ? '' : shop.name)}
+                className={`min-h-9 rounded-full px-4 text-[14px] ${
+                  editStore === shop.name
+                    ? 'bg-white text-black'
+                    : 'border border-rule text-text-secondary'
+                }`}
+              >
+                {shop.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4">
+          <Micro>How many</Micro>
+          <div className="mt-2 flex items-center gap-3">
+            <Button
+              variant="outline"
+              className="w-14"
+              disabled={editQuantity <= 1}
+              onClick={() => setEditQuantity((n) => Math.max(1, n - 1))}
+            >
+              −
+            </Button>
+            <span className="flex-1 text-center font-mono tnum text-[18px]">
+              {editQuantity}
+            </span>
+            <Button
+              variant="outline"
+              className="w-14"
+              onClick={() => setEditQuantity((n) => n + 1)}
+            >
+              +
+            </Button>
+          </div>
+        </div>
         <label className="mt-4 block">
-          <Micro>Price</Micro>
+          <Micro>Price each</Micro>
           <TextInput
             className="mt-2 font-mono tnum"
             inputMode="decimal"
@@ -409,6 +489,60 @@ export default function Groceries() {
             Save
           </Button>
         </div>
+      </Modal>
+
+      <Modal
+        open={managingShops}
+        onClose={() => {
+          setManagingShops(false);
+          setNewShop('');
+        }}
+        title="Shops"
+      >
+        {shops.length > 0 && (
+          <div className="-mx-5 mb-5">
+            <Rule />
+            {shops.map((shop) => (
+              <div
+                key={shop.id}
+                className="flex items-center border-b border-rule px-5 py-3"
+              >
+                <span className="flex-1 text-[15px]">{shop.name}</span>
+                <button
+                  type="button"
+                  onClick={() => void removeShop(shop.id)}
+                  aria-label={`Remove ${shop.name}`}
+                  className="h-9 w-9 text-text-muted active:text-text"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <Micro>New shop</Micro>
+        <TextInput
+          className="mt-2"
+          value={newShop}
+          onChange={(e) => setNewShop(e.target.value)}
+          placeholder="Edeka"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && newShop.trim()) {
+              void addShop(newShop).then(() => setNewShop(''));
+            }
+          }}
+        />
+        <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
+          Removing a shop leaves the lines filed under it alone.
+        </p>
+        <Button
+          variant="solid"
+          className="mt-4 w-full"
+          disabled={!newShop.trim()}
+          onClick={() => void addShop(newShop).then(() => setNewShop(''))}
+        >
+          Add shop
+        </Button>
       </Modal>
 
       <Confirm

@@ -37,7 +37,8 @@ hierarchy. That constraint is the design.
    [`002_households_and_currencies.sql`](supabase/migrations/002_households_and_currencies.sql),
    [`003_share_single_budget.sql`](supabase/migrations/003_share_single_budget.sql),
    [`004_close_household_joining.sql`](supabase/migrations/004_close_household_joining.sql),
-   then [`005_groceries.sql`](supabase/migrations/005_groceries.sql).
+   [`005_groceries.sql`](supabase/migrations/005_groceries.sql),
+   then [`006_shops_and_quantity.sql`](supabase/migrations/006_shops_and_quantity.sql).
    Each is a single transaction and safe to re-run. Together they create the
    tables, the row-level security policies, the rollover function and the
    household sharing machinery.
@@ -176,9 +177,15 @@ it belongs to is denominated in: a euro shop makes no sense displayed in lira
 while you are standing in the shop. Tap the currency beside the total to see
 the same figures in the budget's currency; the choice is remembered.
 
-The shop **sticks**: whatever you used last is already filled in, remembered
-per budget, until you change it. Adding ten things from one shop should not
-mean typing its name ten times.
+Shops are a **list belonging to the budget**, not free text: you pick one
+rather than typing it. They survive the list being cleared at checkout and
+are shared with whoever the budget is shared with. The `+` beside the chips
+adds or removes one, and the shop you used last stays selected.
+
+Each line has a **quantity**, with the price being the price of one. Tapping
+the `×N` beside a line adds another — the commonest correction while
+actually shopping. Lowering it, or setting it exactly, is in the edit sheet.
+Checkout multiplies price by quantity.
 
 Tick things off as you buy them. When the trip is done, **Add to budget**
 turns what you actually bought into an item in the current cycle and clears

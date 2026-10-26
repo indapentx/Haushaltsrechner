@@ -90,12 +90,21 @@ type IncomeRow = {
   created_at: string;
 };
 
+type ShopRow = {
+  id: string;
+  profile_id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+};
+
 type GroceryItemRow = {
   id: string;
   profile_id: string;
   name: string;
   store: string | null;
   amount: number;
+  quantity: number;
   currency: string;
   rate_date: string;
   is_bought: boolean;
@@ -192,6 +201,12 @@ export type Database = {
         Update: Partial<IncomeRow>;
         Relationships: [];
       };
+      shops: {
+        Row: ShopRow;
+        Insert: Defaulted<ShopRow, 'id' | 'created_at' | 'sort_order'>;
+        Update: Partial<ShopRow>;
+        Relationships: [];
+      };
       grocery_items: {
         Row: GroceryItemRow;
         Insert: Defaulted<
@@ -200,6 +215,7 @@ export type Database = {
           | 'created_at'
           | 'store'
           | 'amount'
+          | 'quantity'
           | 'rate_date'
           | 'is_bought'
           | 'bought_at'
