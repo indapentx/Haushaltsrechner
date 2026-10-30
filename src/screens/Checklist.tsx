@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { ItemRow } from '../components/ItemRow';
+import { SwipeRow } from '../components/SwipeRow';
 import { useFlipList } from '../components/useFlipList';
 import {
   Button,
@@ -39,6 +40,8 @@ export default function Checklist() {
   const [editName, setEditName] = useState('');
   const [editAmount, setEditAmount] = useState('');
   const [adding, setAdding] = useState(false);
+  /** The one row swiped open, if any. Opening another closes it. */
+  const [openId, setOpenId] = useState<string | null>(null);
   const addInFlight = useRef(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Item | null>(null);
@@ -101,15 +104,26 @@ export default function Checklist() {
       ) : (
         <div>
           {ordered.map((item) => (
-            <ItemRow
+            <SwipeRow
               key={item.id}
-              item={item}
-              displayCurrency={currency}
-              converted={inDisplay(item)}
-              rowRef={registerRow(item.id)}
-              onToggle={() => void toggleItem(item.id)}
-              onOpenActions={() => setActing(item)}
-            />
+              open={openId === item.id}
+              onOpenChange={(open) => setOpenId(open ? item.id : null)}
+              onTouch={() => setOpenId((id) => (id === item.id ? id : null))}
+              swallowTap={openId !== null && openId !== item.id}
+              onDelete={() => {
+                setOpenId(null);
+                void removeItem(item.id);
+              }}
+            >
+              <ItemRow
+                item={item}
+                displayCurrency={currency}
+                converted={inDisplay(item)}
+                rowRef={registerRow(item.id)}
+                onToggle={() => void toggleItem(item.id)}
+                onOpenActions={() => setActing(item)}
+              />
+            </SwipeRow>
           ))}
         </div>
       )}

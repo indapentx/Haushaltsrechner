@@ -27,9 +27,11 @@ export function ItemRow({
   const foreign = item.currency !== displayCurrency;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
   const [pressed, setPressed] = useState(false);
 
-  function startPress() {
+  function startPress(e: { clientX: number; clientY: number }) {
+    pressStart.current = { x: e.clientX, y: e.clientY };
     longPressed.current = false;
     setPressed(true);
     timer.current = setTimeout(() => {
@@ -39,7 +41,16 @@ export function ItemRow({
     }, 500);
   }
 
+  // Swiping the row to delete it must not also open the edit sheet half a
+  // second in. Any real movement cancels the long press.
+  function movePress(e: { clientX: number; clientY: number }) {
+    const s = pressStart.current;
+    if (!s || !timer.current) return;
+    if (Math.abs(e.clientX - s.x) > 8 || Math.abs(e.clientY - s.y) > 8) endPress();
+  }
+
   function endPress() {
+    pressStart.current = null;
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     setPressed(false);
@@ -59,6 +70,7 @@ export function ItemRow({
           onToggle();
         }}
         onPointerDown={startPress}
+        onPointerMove={movePress}
         onPointerUp={endPress}
         onPointerLeave={endPress}
         onPointerCancel={endPress}

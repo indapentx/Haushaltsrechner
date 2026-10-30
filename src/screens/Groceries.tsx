@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Confirm, Micro, Modal, Rule, TextInput } from '../components/ui';
+import { SwipeRow } from '../components/SwipeRow';
 import type { GroceryItem } from '../lib/db';
 import { convert } from '../lib/fx';
 import {
@@ -83,6 +84,8 @@ export default function Groceries() {
   const [editAmount, setEditAmount] = useState('');
   const [editQuantity, setEditQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
+  /** The one row swiped open, if any. Opening another closes it. */
+  const [openId, setOpenId] = useState<string | null>(null);
   const addInFlight = useRef(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmCheckout, setConfirmCheckout] = useState(false);
@@ -226,7 +229,19 @@ export default function Groceries() {
               const foreign = row.currency !== listCurrency;
               const converted = inListCurrency(row);
               return (
-                <div key={row.id} className="flex items-center border-b border-rule">
+                <SwipeRow
+                  key={row.id}
+                  className="bg-ink"
+                  open={openId === row.id}
+                  onOpenChange={(open) => setOpenId(open ? row.id : null)}
+                  onTouch={() => setOpenId((id) => (id === row.id ? id : null))}
+                  swallowTap={openId !== null && openId !== row.id}
+                  onDelete={() => {
+                    setOpenId(null);
+                    void removeGrocery(row.id);
+                  }}
+                >
+                <div className="flex items-center border-b border-rule">
                   <button
                     type="button"
                     role="checkbox"
@@ -303,6 +318,7 @@ export default function Groceries() {
                     ···
                   </button>
                 </div>
+                </SwipeRow>
               );
             })}
           </div>
