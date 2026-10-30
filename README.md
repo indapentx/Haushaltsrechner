@@ -182,6 +182,10 @@ rather than typing it. They survive the list being cleared at checkout and
 are shared with whoever the budget is shared with. The `+` beside the chips
 adds or removes one, and the shop you used last stays selected.
 
+The list groups appear in **your** order, not the alphabet's — usually the
+order you walk round the shops in. Drag the handle on each row in the `+`
+sheet; the groups and the chips both follow, and Anywhere stays last.
+
 Each line has a **quantity**, with the price being the price of one. Tapping
 the `×N` beside a line adds another — the commonest correction while
 actually shopping. Lowering it, or setting it exactly, is in the edit sheet.

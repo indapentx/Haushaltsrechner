@@ -348,14 +348,22 @@ export async function listShops(profileId: string): Promise<Shop[]> {
   return data;
 }
 
-export async function createShop(profileId: string, name: string): Promise<Shop> {
+export async function createShop(
+  profileId: string,
+  name: string,
+  sortOrder: number,
+): Promise<Shop> {
   const { data } = await supabase
     .from('shops')
-    .insert({ profile_id: profileId, name })
+    .insert({ profile_id: profileId, name, sort_order: sortOrder })
     .select()
     .single()
     .throwOnError();
   return data;
+}
+
+export async function setShopOrder(id: string, sortOrder: number): Promise<void> {
+  await supabase.from('shops').update({ sort_order: sortOrder }).eq('id', id).throwOnError();
 }
 
 export async function deleteShop(id: string): Promise<void> {

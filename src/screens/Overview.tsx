@@ -205,8 +205,7 @@ function IncomeSheet({
       title="Income"
     >
       {incomes.length > 0 && (
-        <div className="-mx-5 mb-5">
-          <Rule />
+        <div className="-mx-5 -mt-5 mb-5">
           {incomes.map((income) => {
             const converted = inDisplay(income);
             const selected = editing?.id === income.id;

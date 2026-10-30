@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Confirm, Micro, Modal, Rule, TextInput } from '../components/ui';
+import { ReorderList } from '../components/ReorderList';
 import { SwipeRow } from '../components/SwipeRow';
 import type { GroceryItem } from '../lib/db';
 import { convert } from '../lib/fx';
@@ -36,6 +37,7 @@ export default function Groceries() {
     activeProfile,
     addGrocery,
     addShop,
+    reorderShops,
     removeShop,
     editGrocery,
     removeGrocery,
@@ -112,8 +114,13 @@ export default function Groceries() {
       const key = row.store?.trim() || NO_STORE;
       byStore.set(key, [...(byStore.get(key) ?? []), row]);
     }
+    // Your order, not the alphabet. Shops that have since been removed sort
+    // after the known ones; Anywhere is always last.
+    const rank = new Map(shops.map((shop, index) => [shop.name, index]));
+    const place = (name: string) =>
+      name === NO_STORE ? Number.MAX_SAFE_INTEGER : (rank.get(name) ?? shops.length);
     return [...byStore.entries()]
-      .sort(([a], [b]) => (a === NO_STORE ? 1 : b === NO_STORE ? -1 : a.localeCompare(b)))
+      .sort(([a], [b]) => place(a) - place(b) || a.localeCompare(b))
       .map(([shop, rows]) => ({
         shop,
         rows: [...rows].sort((a, b) =>
@@ -122,7 +129,7 @@ export default function Groceries() {
         subtotal: sumAmounts(rows.map(value)),
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groceries, listCurrency, rates]);
+  }, [groceries, listCurrency, rates, shops]);
 
   const total = sumAmounts(groceries.map(value));
   const bought = sumAmounts(groceries.filter((g) => g.is_bought).map(value));
@@ -516,24 +523,21 @@ export default function Groceries() {
         title="Shops"
       >
         {shops.length > 0 && (
-          <div className="-mx-5 mb-5">
-            <Rule />
-            {shops.map((shop) => (
-              <div
-                key={shop.id}
-                className="flex items-center border-b border-rule px-5 py-3"
-              >
-                <span className="flex-1 text-[15px]">{shop.name}</span>
+          <div className="-mx-5 -mt-5 mb-5">
+            <ReorderList
+              items={shops.map((shop) => ({ id: shop.id, label: shop.name }))}
+              onReorder={(ids) => void reorderShops(ids)}
+              trailing={(item) => (
                 <button
                   type="button"
-                  onClick={() => void removeShop(shop.id)}
-                  aria-label={`Remove ${shop.name}`}
-                  className="h-9 w-9 text-text-muted active:text-text"
+                  onClick={() => void removeShop(item.id)}
+                  aria-label={`Remove ${item.label}`}
+                  className="h-12 w-12 text-text-muted active:text-text"
                 >
                   ×
                 </button>
-              </div>
-            ))}
+              )}
+            />
           </div>
         )}
         <Micro>New shop</Micro>
@@ -549,7 +553,8 @@ export default function Groceries() {
           }}
         />
         <p className="mt-3 text-[13px] leading-relaxed text-text-muted">
-          Removing a shop leaves the lines filed under it alone.
+          Drag the handle to set the order the list follows. Removing a shop
+          leaves the lines filed under it alone.
         </p>
         <Button
           variant="solid"

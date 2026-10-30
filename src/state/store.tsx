@@ -114,6 +114,8 @@ interface BudgetContext extends State {
     currency: string,
   ) => Promise<void>;
   addShop: (name: string) => Promise<void>;
+  /** Put the shops in this order: the list's groups follow it. */
+  reorderShops: (ids: string[]) => Promise<void>;
   removeShop: (id: string) => Promise<void>;
   editGrocery: (
     id: string,
@@ -585,13 +587,40 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       if (!profileId || !trimmed) return;
       if (state.shops.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) return;
       try {
-        const shop = await db.createShop(profileId, trimmed);
+        // New shops join at the end rather than jumping to the top.
+        const shop = await db.createShop(profileId, trimmed, state.shops.length);
         patch((prev) => ({ shops: [...prev.shops, shop] }));
       } catch (e) {
         fail(e);
       }
     },
     [state.activeProfileId, state.shops, patch, fail],
+  );
+
+  const reorderShops = useCallback(
+    async (ids: string[]) => {
+      const before = state.shops;
+      const byId = new Map(before.map((shop) => [shop.id, shop]));
+      const next = ids
+        .map((id, index) => {
+          const shop = byId.get(id);
+          return shop ? { ...shop, sort_order: index } : null;
+        })
+        .filter((shop): shop is Shop => shop !== null);
+      patch({ shops: next });
+      try {
+        // Only what actually moved is written.
+        await Promise.all(
+          next
+            .filter((shop) => byId.get(shop.id)?.sort_order !== shop.sort_order)
+            .map((shop) => db.setShopOrder(shop.id, shop.sort_order)),
+        );
+      } catch (e) {
+        fail(e);
+        patch({ shops: before });
+      }
+    },
+    [state.shops, patch, fail],
   );
 
   const removeShop = useCallback(
@@ -835,6 +864,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     resetAll,
     addGrocery,
     addShop,
+    reorderShops,
     removeShop,
     editGrocery,
     removeGrocery,
